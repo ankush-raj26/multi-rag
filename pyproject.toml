@@ -1,0 +1,55 @@
+[project]
+name = "rag-chatbot"
+version = "0.1.0"
+description = "Training scaffold: a session-based RAG chatbot (FastAPI + LangGraph + LangSmith)."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "fastapi>=0.160,<1",
+    "uvicorn[standard]>=0.50,<1",
+    "jinja2>=3.1,<4",
+    "python-multipart>=0.0.20",
+    "python-dotenv>=1.1,<2",
+    "langchain-core>=1.7,<2",
+    "langgraph>=1.2,<2",
+    "langsmith>=0.14,<0.15",
+    # --- added for the milestones ---
+    "langchain-groq>=1,<2",          # M1 default provider
+    "langchain-google-genai>=4,<5",  # M1 Gemini provider
+    "fastembed>=0.4,<1",             # M4 local embeddings (no API key)
+    "numpy>=1.26",                   # M5 cosine similarity
+    "rank-bm25>=0.2,<1",             # M5/M7 BM25 keyword scoring (hybrid RAG)
+    "pypdf>=5",                      # M6 PDF page-aware loading (page-index RAG)
+    "deepagents>=0.7,<1",            # agentic route: planning deep agent
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9,<10",
+    "httpx>=0.28,<1",
+    "ruff==0.17.3",
+    "mypy==2.4.0",
+    "reportlab>=4,<5",  # only to (re)generate the demo sample PDF
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "contract: public contract tests for the trainee milestones (expected to fail until implemented)",
+]
+addopts = "-q -m 'not contract'"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C901"]
+ignore = ["B008"]  # FastAPI uses Depends() in defaults by design
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true

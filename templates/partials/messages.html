@@ -1,0 +1,38 @@
+{% from "partials/icons.html" import icon %}
+{% set ROUTES = ["none", "dense", "bm25", "hybrid", "page", "agentic"] %}
+{% set ROUTE_LABEL = {"none": "No retrieval", "dense": "Dense RAG", "bm25": "BM25 RAG", "hybrid": "Hybrid RAG",
+                      "page": "Page-index RAG", "agentic": "Deep agent"} %}
+{% for m in messages %}
+<article class="message {{ m.role }}"
+  {% if m.route %}data-route="{{ m.route.route }}" data-layer="{{ m.route.layer }}" data-reason="{{ m.route.reason }}"{% endif %}>
+  {# Which route the 3-layer router chose: the stamp replays it in the router panel #}
+  {% if m.route %}
+    <button type="button" class="stamp" data-replay title="{{ m.route.reason }}">
+      <span class="slots" aria-hidden="true">{% for r in ROUTES %}<i{% if r == m.route.route %} class="on"{% endif %}></i>{% endfor %}</span>
+      <span class="stamp-route">{{ ROUTE_LABEL.get(m.route.route, m.route.route) }}</span>
+      <span class="stamp-layer">via {{ m.route.layer }}</span>
+    </button>
+  {% endif %}
+  <div class="content" {% if m.role == "assistant" %}data-md{% endif %}>{{ m.content }}</div>
+  {% if m.sources %}
+  <details class="sources">
+    <summary>{{ icon("chevron", 14) }}{{ m.sources|length }} source{{ "s" if m.sources|length != 1 }}</summary>
+    <ul>
+      {% for s in m.sources %}
+      <li>
+        <div class="source-head">
+          <span class="source-name">{{ s.source }}</span>
+          {% if s.score is not none %}<span class="source-score">{{ "%.2f"|format(s.score) }}</span>{% endif %}
+          {# For PDF chunks a page number is present -> offer a "jump to page" button #}
+          {% if s.page is not none and s.source.lower().endswith('.pdf') %}
+            <button type="button" class="chip" data-pdf="{{ s.source }}" data-page="{{ s.page }}">{{ icon("file", 14) }}Page {{ s.page }}</button>
+          {% endif %}
+        </div>
+        {% if s.snippet %}<div class="snippet">{{ s.snippet }}</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+</article>
+{% endfor %}

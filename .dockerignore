@@ -1,0 +1,10 @@
+.env
+.venv
+.git
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+self_check_report.json
+data/sessions/*.json
+data/vectorstore/*

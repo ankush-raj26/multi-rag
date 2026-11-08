@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Routing Assembly · RAG Chatbot</title>
+<meta name="description" content="Type a question and watch the chatbot's three-layer router decide whether it needs your documents at all. Then ask the real bot.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230D2740'/><path d='M8 9h16M8 16h16M8 23h16' stroke='%23EAF0F6' stroke-width='2'/><circle cx='16' cy='16' r='3' fill='%23FF6B45'/></svg>">
+<link rel="preload" href="{{ url_for('static', path='fonts/archivo-latin-500-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{{ url_for('static', path='welcome/scrollcraft.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='welcome/welcome.css') }}">
+<script type="importmap">{ "imports": { "three": "{{ url_for('static', path='vendor/three.module.min.js') }}" } }</script>
+</head>
+<body>
+
+<span data-sc-progress></span>
+<div class="sc-grain" aria-hidden="true"></div>
+
+<!-- Far plane: drafting paper grid, fixed behind everything, drifts slower than the page. -->
+<div class="paper" aria-hidden="true"></div>
+<!-- Mid plane: the three.js assembly. Fixed; only visible where a sheet is transparent. -->
+<canvas id="rig" class="rig" aria-hidden="true"></canvas>
+<!-- No-WebGL fallback: the same assembly as a flat elevation drawing (filled in by rig.js). -->
+<svg id="rig-flat" class="rig-flat" viewBox="-10 -11 20 22" aria-hidden="true" hidden></svg>
+<!-- Labels that follow points in the 3D scene (real text, positioned from projection). -->
+<div class="tags" aria-hidden="true">
+  <span class="tag" data-tag="g0">L1 · Regex sieve</span>
+  <span class="tag" data-tag="g1">L2 · Semantic field</span>
+  <span class="tag" data-tag="g2">L3 · LLM picker</span>
+  <span class="tag tag--quiet" data-tag="bins">Outlets · six routes</span>
+  <span class="packet-tag" data-tag="packet"></span>
+  <span class="stamp" data-tag="stamp" hidden></span>
+</div>
+
+<!-- The drawing title block IS the navigation (live surface: app chrome, not a marketing bar). -->
+<nav class="titleblock" aria-label="Drawing sheets">
+  <div class="tb-head">
+    <a class="tb-name" href="/">RAG Chatbot</a>
+    <span class="tb-meta">Routing assembly · drawn by spytro · scale NTS</span>
+  </div>
+  <ol class="tb-sheets">
+    <li><a href="#assembly" data-sheet="assembly"><b>R-1</b> Assembly</a></li>
+    <li><a href="#ledger" data-sheet="ledger"><b>R-2</b> Ledger</a></li>
+    <li><a href="#drop" data-sheet="drop"><b>R-3</b> Drop test</a></li>
+    <li><a href="#details" data-sheet="details"><b>R-4</b> Details</a></li>
+    <li><a href="#wiring" data-sheet="wiring"><b>R-5</b> Wiring</a></li>
+    <li><a href="#ask" data-sheet="ask"><b>R-6</b> Ask</a></li>
+  </ol>
+</nav>
+
+<main>
+
+  <!-- R-1 · CURIOSITY. Pinned hero: the drawing already in a state, your question field. -->
+  <section id="assembly" class="sheet sheet--clear" data-sc-act="pin" data-sc-span="1.5">
+    <div data-sc-stage class="hero">
+      <div class="hero__copy">
+        <p class="sheet-code">Sheet R-1 · General assembly</p>
+        <h1 class="hero__title">A chatbot that knows when not to search.</h1>
+        <p class="hero__sub">Type a question. Scroll, and watch the real router decide what it deserves.</p>
+        <form class="qform" id="qform" autocomplete="off">
+          <label class="qform__label" for="q">Your question</label>
+          <div class="qform__row">
+            <input id="q" name="q" type="text" maxlength="500" value="How many annual leave days do I get?" spellcheck="false">
+            <button type="submit" class="qform__go">Route it</button>
+          </div>
+          <div class="chips" role="group" aria-label="Sample questions">
+            <button type="button" class="chip" data-q="hi">hi</button>
+            <button type="button" class="chip" data-q="what is on page 4">what is on page 4</button>
+            <button type="button" class="chip" data-q="compare the leave policy with the remote work policy">compare leave and remote work</button>
+            <button type="button" class="chip" data-q="what is the email for HR">email for HR</button>
+          </div>
+          <p class="qform__status" id="qstatus" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+      <!-- Near plane: a dimension line that overtakes the assembly as you scroll. -->
+      <svg class="dimline" viewBox="0 0 60 600" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M30 6 V594 M18 6 H42 M18 594 H42 M30 6 l-5 12 M30 6 l5 12 M30 594 l-5 -12 M30 594 l5 -12" />
+      </svg>
+      <p class="dimline__label" aria-hidden="true">3 layers before a single search</p>
+    </div>
+  </section>
+
+  <!-- R-2 · UNEASE. Quiet, light print sheet. Authored silence before the peak. -->
+  <section id="ledger" class="sheet sheet--print sc-section">
+    <div class="sc-wrap ledger" data-sc-in data-sc-stagger="60">
+      <p class="sheet-code">Sheet R-2 · Ledger</p>
+      <h2 class="ledger__title">A plain RAG bot treats “hi” like a research request.</h2>
+      <table class="ledger__table">
+        <caption class="visually-hidden">What happens to the message “hi” with and without the router</caption>
+        <thead><tr><th scope="col">Step</th><th scope="col">Plain RAG bot</th><th scope="col">This bot</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Embed the message</th><td>Always</td><td>Skipped. Regex layer recognises a greeting</td></tr>
+          <tr><th scope="row">Search the vector store</th><td>Top-k chunks, every time</td><td>Skipped</td></tr>
+          <tr><th scope="row">Pad the prompt with passages</th><td>Leave policy, expense rules, whatever ranked highest</td><td>Nothing added</td></tr>
+          <tr><th scope="row">What the model sees</th><td>“hi” buried under unrelated context</td><td>“hi”</td></tr>
+        </tbody>
+      </table>
+      <p class="ledger__turn">So before anything is fetched, the router asks one question: does this message need the documents at all?</p>
+    </div>
+  </section>
+
+  <!-- R-3 · PEAK. The drop test: your question falls through the three gates. Largest span. -->
+  <section id="drop" class="sheet sheet--clear" data-sc-act="pin" data-sc-span="4.2">
+    <div data-sc-stage class="drop">
+      <aside class="log" aria-labelledby="log-title">
+        <p class="sheet-code" id="log-title">Sheet R-3 · Drop test</p>
+        <p class="log__q"><span class="log__k">Q</span> <span id="log-q"></span></p>
+        <ol class="log__lines">
+          <li data-gate="0"><span class="log__k">L1</span> Regex <span class="log__v">waiting</span></li>
+          <li data-gate="1"><span class="log__k">L2</span> Semantic <span class="log__v">waiting</span></li>
+          <li data-gate="2"><span class="log__k">L3</span> LLM picker <span class="log__v">waiting</span></li>
+          <li data-gate="out" class="log__out"><span class="log__k">→</span> Route <span class="log__v">pending</span></li>
+        </ol>
+        <p class="log__src" id="log-src"></p>
+        <div class="chips chips--log" role="group" aria-label="Drop another question">
+          <span class="chips__label">Drop another:</span>
+          <button type="button" class="chip" data-q="hi">hi</button>
+          <button type="button" class="chip" data-q="what is on page 4">page 4</button>
+          <button type="button" class="chip" data-q="compare the leave policy with the remote work policy">compare</button>
+          <button type="button" class="chip" data-q="How many annual leave days do I get?">leave days</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- R-4 · CLARITY. Lateral rail of drawing details, yours stamped in redline. -->
+  <section id="details" class="sheet sheet--deep" data-sc-act="pan" data-sc-span="3">
+    <div data-sc-stage class="details">
+      <div class="rail" data-sc-pan="0.06">
+        <div class="rail__lead">
+          <p class="sheet-code">Sheet R-4 · Details</p>
+          <h2 class="rail__title">Five ways to fetch the right passage.</h2>
+          <p class="rail__body">The router picks one per message. The stamped detail is the one your question gets.</p>
+        </div>
+
+        <article class="detail" data-route="dense" data-sc-tilt="6">
+          <p class="detail__code">Detail A</p>
+          <svg class="detail__fig" viewBox="0 0 200 120" aria-hidden="true">
+            <g class="fig-dots"><circle cx="30" cy="30" r="3"/><circle cx="58" cy="82" r="3"/><circle cx="92" cy="24" r="3"/><circle cx="150" cy="96" r="3"/><circle cx="168" cy="38" r="3"/><circle cx="120" cy="58" r="3"/><circle cx="74" cy="52" r="3"/><circle cx="138" cy="20" r="3"/></g>
+            <path class="fig-link" d="M104 64 L120 58 M104 64 L74 52 M104 64 L92 24"/>
+            <circle class="fig-q" cx="104" cy="64" r="5"/>
+          </svg>
+          <h3 class="detail__name">Dense</h3>
+          <dl class="detail__spec">
+            <div><dt>Finds</dt><dd>Same meaning, different words</dd></div>
+            <div><dt>Router sends</dt><dd>“Explain”, “why”, “summarise”</dd></div>
+            <div><dt>File</dt><dd><code>store.search()</code></dd></div>
+          </dl>
+          <p class="detail__stamp">Your question</p>
+        </article>
+
+        <article class="detail" data-route="bm25" data-sc-tilt="6">
+          <p class="detail__code">Detail B</p>
+          <svg class="detail__fig" viewBox="0 0 200 120" aria-hidden="true">
+            <g class="fig-rows"><path d="M20 26 H180 M20 52 H180 M20 78 H180 M20 104 H180 M80 14 V112"/></g>
+            <g class="fig-text"><text x="28" y="44">leave</text><text x="28" y="70">hr</text><text x="28" y="96">receipt</text><text x="90" y="44">c3 c7 c12</text><text x="90" y="70">c31</text><text x="90" y="96">c9 c10</text></g>
+          </svg>
+          <h3 class="detail__name">BM25</h3>
+          <dl class="detail__spec">
+            <div><dt>Finds</dt><dd>The exact word, code or email</dd></div>
+            <div><dt>Router sends</dt><dd>Quotes, addresses, IDs</dd></div>
+            <div><dt>File</dt><dd><code>store.search_bm25()</code></dd></div>
+          </dl>
+          <p class="detail__stamp">Your question</p>
+        </article>
+
+        <article class="detail" data-route="hybrid" data-sc-tilt="6">
+          <p class="detail__code">Detail C</p>
+          <svg class="detail__fig" viewBox="0 0 200 120" aria-hidden="true">
+            <g class="fig-rows"><path d="M20 20 H70 M20 40 H70 M20 60 H70 M20 84 H70 M20 104 H70 M130 30 H180 M130 52 H180 M130 74 H180 M130 96 H180"/></g>
+            <path class="fig-link" d="M70 20 C100 20 100 30 130 30 M70 84 C100 84 100 52 130 52 M70 40 C100 40 100 74 130 74"/>
+            <g class="fig-text"><text x="20" y="14">dense</text><text x="20" y="78">bm25</text><text x="130" y="22">fused (RRF)</text></g>
+          </svg>
+          <h3 class="detail__name">Hybrid</h3>
+          <dl class="detail__spec">
+            <div><dt>Finds</dt><dd>Both lists, ranks merged</dd></div>
+            <div><dt>Router sends</dt><dd>Plain factual questions</dd></div>
+            <div><dt>File</dt><dd><code>retriever._rrf()</code></dd></div>
+          </dl>
+          <p class="detail__stamp">Your question</p>
+        </article>
+
+        <article class="detail" data-route="page" data-sc-tilt="6">
+          <p class="detail__code">Detail D</p>
+          <svg class="detail__fig" viewBox="0 0 200 120" aria-hidden="true">
+            <g class="fig-rows"><path d="M40 30 h60 v80 h-60 Z M52 22 h60 v80 M64 14 h60 v80"/></g>
+            <path class="fig-q-page" d="M120 34 h60 v80 h-60 Z"/>
+            <g class="fig-text"><text x="132" y="58">page 4</text></g>
+          </svg>
+          <h3 class="detail__name">Page index</h3>
+          <dl class="detail__spec">
+            <div><dt>Finds</dt><dd>Chunks from the page you named</dd></div>
+            <div><dt>Router sends</dt><dd>“What is on page N”</dd></div>
+            <div><dt>File</dt><dd><code>PageChunker</code></dd></div>
+          </dl>
+          <p class="detail__stamp">Your question</p>
+        </article>
+
+        <article class="detail" data-route="agentic" data-sc-tilt="6">
+          <p class="detail__code">Detail E</p>
+          <svg class="detail__fig" viewBox="0 0 200 120" aria-hidden="true">
+            <g class="fig-rows"><rect x="16" y="46" width="44" height="26"/><rect x="78" y="14" width="44" height="26"/><rect x="78" y="80" width="44" height="26"/><rect x="140" y="46" width="44" height="26"/></g>
+            <path class="fig-link" d="M60 54 L78 30 M122 30 L140 54 M140 64 L122 92 M78 92 L60 64"/>
+            <g class="fig-text"><text x="22" y="63">plan</text><text x="82" y="31">search</text><text x="88" y="97">calc</text><text x="144" y="63">answer</text></g>
+          </svg>
+          <h3 class="detail__name">Deep agent</h3>
+          <dl class="detail__spec">
+            <div><dt>Finds</dt><dd>Whatever the plan needs, searched again and again</dd></div>
+            <div><dt>Router sends</dt><dd>Compare, combine, calculate</dd></div>
+            <div><dt>File</dt><dd><code>engine._deep_agent()</code></dd></div>
+          </dl>
+          <p class="detail__stamp">Your question</p>
+        </article>
+
+        <aside class="found" aria-live="polite">
+          <p class="detail__code">Note</p>
+          <h3 class="found__title">What it found for your question</h3>
+          <ol class="found__list" id="found-list"></ol>
+          <p class="found__empty" id="found-empty"></p>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- R-5 · COMPETENCE. The LangGraph wiring draws itself; your path is redlined. -->
+  <section id="wiring" class="sheet sheet--clear-deep" data-sc-act="pin" data-sc-span="1.6">
+    <div data-sc-stage class="wiring">
+      <div class="wiring__copy">
+        <p class="sheet-code">Sheet R-5 · Wiring</p>
+        <h2 class="wiring__title">One LangGraph, three ways out.</h2>
+        <p class="wiring__body">Greetings go straight to the model. Questions pass through retrieval. Multi-step questions go to the deep agent. Your question’s path is drawn in red.</p>
+        <p class="wiring__file"><code>app/chat/engine.py</code> · <code>_build_graph()</code></p>
+      </div>
+      <svg class="graph" viewBox="0 0 760 420" role="img" aria-labelledby="graph-title">
+        <title id="graph-title">The chat graph: START to route, then generate, retrieve then generate, or deep agent, then END</title>
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" class="arrowhead"/></marker>
+        </defs>
+        <g class="edges">
+          <path pathLength="1" style="--d:0"   data-edge="start-route"    d="M70 210 H150" marker-end="url(#arr)"/>
+          <path pathLength="1" style="--d:0.15" data-edge="route-generate" d="M250 190 C320 120 380 80 470 80" marker-end="url(#arr)"/>
+          <path pathLength="1" style="--d:0.15" data-edge="route-retrieve" d="M250 210 H330" marker-end="url(#arr)"/>
+          <path pathLength="1" style="--d:0.15" data-edge="route-agent"    d="M250 230 C320 300 380 340 470 340" marker-end="url(#arr)"/>
+          <path pathLength="1" style="--d:0.3" data-edge="retrieve-generate" d="M430 200 C450 150 470 120 500 100" marker-end="url(#arr)"/>
+          <path pathLength="1" style="--d:0.45" data-edge="generate-tools"  d="M580 60 C620 20 680 20 690 50" marker-end="url(#arr)"/>
+          <path pathLength="1" style="--d:0.5" data-edge="tools-generate"  d="M690 80 C680 110 620 110 590 96" marker-end="url(#arr)"/>
+          <path pathLength="1" style="--d:0.45" data-edge="generate-end"    d="M570 100 C620 160 640 190 660 200" marker-end="url(#arr)"/>
+          <path pathLength="1" style="--d:0.45" data-edge="agent-end"       d="M570 340 C620 290 640 240 660 222" marker-end="url(#arr)"/>
+        </g>
+        <g class="nodes">
+          <g style="--d:0"><rect x="10" y="190" width="60" height="40"/><text x="40" y="215">START</text></g>
+          <g style="--d:0.05"><rect x="150" y="186" width="100" height="48"/><text x="200" y="215">route</text></g>
+          <g style="--d:0.25"><rect x="330" y="186" width="100" height="48"/><text x="380" y="215">retrieve</text></g>
+          <g style="--d:0.3"><rect x="470" y="58" width="110" height="48"/><text x="525" y="87">generate</text></g>
+          <g style="--d:0.45"><rect x="650" y="40" width="90" height="44"/><text x="695" y="67">tools</text></g>
+          <g style="--d:0.3"><rect x="470" y="316" width="110" height="48"/><text x="525" y="345">deep_agent</text></g>
+          <g style="--d:0.55"><rect x="660" y="190" width="70" height="40"/><text x="695" y="215">END</text></g>
+        </g>
+        <g class="edge-notes">
+          <text x="300" y="128" style="--d:0.2">none</text>
+          <text x="262" y="200" style="--d:0.2">dense · bm25 · hybrid · page</text>
+          <text x="300" y="312" style="--d:0.2">agentic</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- R-6 · READINESS. The real bot, your question already typed. Resolves and holds. -->
+  <section id="ask" class="sheet sheet--print sc-section ask">
+    <div class="sc-wrap ask__grid">
+      <div class="ask__intro" data-sc-in data-sc-stagger="60">
+        <p class="sheet-code">Sheet R-6 · Ask</p>
+        <h2 class="ask__title">Now ask the real one.</h2>
+        <p class="ask__body">Same router, same documents{% if chunks %} ({{ chunks }} chunks indexed){% endif %}, a real model behind it. The answer shows which route it took and where it found it.</p>
+        {% if documents %}<p class="ask__docs">Indexed from: {% for d in documents %}<a href="{{ url_for('serve_document', name=d) }}" target="_blank" rel="noopener">{{ d }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+      </div>
+      <form class="askform" id="askform" method="post" action="/ui/start">
+        <label for="ask-q" class="qform__label">Message</label>
+        <textarea id="ask-q" name="content" rows="3" maxlength="8000" required>How many annual leave days do I get?</textarea>
+        <div class="askform__row">
+          <button type="submit" class="askform__go">Ask the bot</button>
+          <a class="askform__alt" href="/">Open the full chat</a>
+        </div>
+        <div class="answer" id="answer" aria-live="polite" hidden>
+          <p class="answer__route" id="answer-route"></p>
+          <div class="answer__text" id="answer-text"></div>
+          <ul class="answer__sources" id="answer-sources"></ul>
+          <a class="answer__more" id="answer-more" href="/">Continue this chat</a>
+        </div>
+      </form>
+    </div>
+    <footer class="colophon">
+      <span>RAG Chatbot · BigStep training project</span>
+      <span>FastAPI · LangGraph · deepagents · three.js</span>
+    </footer>
+  </section>
+
+</main>
+
+<script src="{{ url_for('static', path='welcome/scrollcraft.js') }}"></script>
+<script>ScrollCraft.mount(document.body);</script>
+<script type="module" src="{{ url_for('static', path='welcome/welcome.js') }}"></script>
+</body>
+</html>

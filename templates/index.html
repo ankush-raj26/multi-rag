@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% from "partials/icons.html" import icon %}
+{% block title %}{{ current.title if current else "RAG Chatbot" }}{% endblock %}
+{% block head %}
+<script type="importmap">{ "imports": { "three": "{{ url_for('static', path='vendor/three.module.min.js') }}" } }</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@14.1.4/marked.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.3/dist/purify.min.js" defer></script>
+<script src="{{ url_for('static', path='chat/chat.js') }}" defer></script>
+<script type="module" src="{{ url_for('static', path='chat/router3d.js') }}"></script>
+{% endblock %}
+{% block body %}
+{% macro doc_name(file) %}{{ file.rsplit(".", 1)[0].replace("_", " ").replace("-", " ") }}{% endmacro %}
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="brand-mark">{{ icon("mark", 18) }}</span>
+      <span class="brand-name">RAG Chatbot</span>
+      <button type="button" class="icon-btn only-mobile" data-toggle="sidebar" aria-label="Close menu">{{ icon("x") }}</button>
+    </div>
+
+    <form method="post" action="/ui/sessions">
+      <button class="btn wide" type="submit">{{ icon("plus") }}New chat</button>
+    </form>
+
+    <nav class="group sessions" aria-label="Chat sessions">
+      <h2 class="group-label">Chats</h2>
+      {% for s in sessions %}
+        <a class="session-link {% if current and s.id == current.id %}active{% endif %}"
+           href="/sessions/{{ s.id }}" title="{{ s.title }}" {% if current and s.id == current.id %}aria-current="page"{% endif %}>
+          <span class="session-title">{{ s.title }}</span>
+          <span class="session-meta" title="{{ s.message_count }} messages">{{ s.message_count }}</span>
+        </a>
+      {% else %}
+        <p class="hint">No chats yet</p>
+      {% endfor %}
+    </nav>
+
+    <section class="group">
+      <h2 class="group-label">Documents</h2>
+      <form class="dropzone" id="dropzone" hx-post="/ui/documents" hx-encoding="multipart/form-data"
+            hx-target="#upload-status" hx-trigger="change" hx-indicator="#dropzone">
+        <label>
+          <input type="file" name="file" accept=".md,.txt,.pdf" required class="visually-hidden">
+          <span class="dropzone-icon">{{ icon("upload", 18) }}</span>
+          <span class="dropzone-text"><b>Drop a file</b> or browse</span>
+          <span class="dropzone-meta">.md · .txt · .pdf</span>
+          <span class="dropzone-busy">Indexing…</span>
+        </label>
+      </form>
+      <div id="upload-status" class="upload-status" aria-live="polite"></div>
+
+      {# ---- PDF page viewer (page-index RAG demo) ---- #}
+      <details class="viewer">
+        <summary>{{ icon("chevron", 14) }}Open a PDF page</summary>
+        {% if pdfs %}
+        <form class="viewer-form" id="viewer-form">
+          <select id="pdf-select" class="select" aria-label="PDF document">
+            {% for name in pdfs %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+          </select>
+          <div class="viewer-row">
+            <input id="pdf-page" class="input" type="number" min="1" value="1" aria-label="Page number">
+            <button class="btn" type="submit">Open</button>
+          </div>
+          <p class="hint">Answers from a PDF show a Page button under their sources</p>
+        </form>
+        {% else %}
+        <p class="hint">No PDFs yet. Upload one, or run <code>uv run python -m app.ingest</code></p>
+        {% endif %}
+      </details>
+    </section>
+
+    {% if missing %}
+    <details class="status">
+      <summary>{{ icon("chevron", 14) }}{{ missing|length }} module{{ "s" if missing|length != 1 }} not implemented yet</summary>
+      <ul>{% for name, reason in missing.items() %}<li><b>{{ name }}</b> {{ reason }}</li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+
+    <a class="tour-link" href="/welcome">How the router works {{ icon("external", 14) }}</a>
+  </aside>
+  <div class="scrim" data-toggle="sidebar" hidden></div>
+
+  <main class="chat">
+    <header class="chat-header">
+      <button type="button" class="icon-btn only-mobile" data-toggle="sidebar" aria-label="Open menu">{{ icon("menu") }}</button>
+      {% if current %}
+        <form class="rename" method="post" action="/ui/sessions/{{ current.id }}/rename">
+          <input name="title" value="{{ current.title }}" aria-label="Chat title" maxlength="120" autocomplete="off" spellcheck="false">
+          <span class="rename-icon">{{ icon("pencil", 14) }}</span>
+        </form>
+        <form method="post" action="/ui/sessions/{{ current.id }}/delete" onsubmit="return confirm('Delete this chat?')">
+          <button class="icon-btn" type="submit" aria-label="Delete chat" title="Delete chat">{{ icon("trash") }}</button>
+        </form>
+      {% else %}
+        <span class="chat-title">RAG Chatbot</span>
+      {% endif %}
+      <button type="button" class="icon-btn panel-toggle" data-toggle="panel" aria-label="Show router" title="Show router">{{ icon("panel") }}</button>
+    </header>
+
+    <div class="scroll" id="scroll">
+      <div class="thread">
+        {% if not current or not current.messages %}
+        <section class="intro" id="intro">
+          <h1>Ask your documents</h1>
+          <p>Answers come from {{ documents|length }} indexed file{{ "s" if documents|length != 1 }}. The router on the right shows which search found each one</p>
+          {% if current %}
+          {% set texts = [] %}{% for d in documents if not d.lower().endswith('.pdf') %}{% set _ = texts.append(d) %}{% endfor %}
+          <div class="starters">
+            {% if texts %}<button type="button" class="starter" data-ask="Summarize the {{ doc_name(texts[0]) }}">Summarize the {{ doc_name(texts[0]) }}</button>{% endif %}
+            {% if pdfs %}<button type="button" class="starter" data-ask="What is on page 2 of {{ pdfs[0] }}?">What is on page 2 of {{ pdfs[0] }}?</button>{% endif %}
+            {% if texts|length > 1 %}<button type="button" class="starter" data-ask="Compare the {{ doc_name(texts[0]) }} and the {{ doc_name(texts[1]) }}">Compare the {{ doc_name(texts[0]) }} and the {{ doc_name(texts[1]) }}</button>{% endif %}
+          </div>
+          {% else %}
+          <form method="post" action="/ui/sessions">
+            <button class="btn primary" type="submit">{{ icon("plus") }}New chat</button>
+          </form>
+          {% endif %}
+        </section>
+        {% endif %}
+        <div id="messages" class="messages">
+          {% if current %}{% with messages = current.messages %}{% include "partials/messages.html" %}{% endwith %}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if current %}
+    <form class="composer" id="composer" data-stream="/ui/sessions/{{ current.id }}/stream">
+      <div class="composer-box">
+        <textarea name="content" rows="1" placeholder="Ask a question" required maxlength="8000" aria-label="Message"></textarea>
+        <button class="send" type="submit" aria-label="Send">{{ icon("send", 18) }}</button>
+        <button class="send stop" type="button" aria-label="Stop" title="Stop" hidden>{{ icon("stop", 16) }}</button>
+      </div>
+      <p class="composer-hint"><kbd>Enter</kbd> to send · <kbd>Shift</kbd> <kbd>Enter</kbd> for a new line</p>
+    </form>
+    {% endif %}
+  </main>
+
+  {# ---- The router, drawn: replays the route each answer took ---- #}
+  <aside class="panel" id="panel" aria-label="Router">
+    <header class="panel-head">
+      <span class="panel-title">Router</span>
+      <span class="panel-status" id="router-status" aria-live="polite">Waiting for a question</span>
+      <button type="button" class="icon-btn panel-close" data-toggle="panel" aria-label="Hide router">{{ icon("x") }}</button>
+    </header>
+    <div class="sheet" id="sheet">
+      <canvas id="router-canvas" aria-hidden="true"></canvas>
+      <div class="sheet-tags" id="sheet-tags" aria-hidden="true"></div>
+      <p class="sheet-hint">Drag to turn</p>
+    </div>
+    <div class="decision" id="decision" hidden>
+      <div class="decision-row">
+        <span class="decision-route" id="decision-route"></span>
+        <button type="button" class="btn small" id="replay">{{ icon("replay", 14) }}Replay</button>
+      </div>
+      <p class="decision-layer" id="decision-layer"></p>
+      <p class="decision-reason" id="decision-reason"></p>
+    </div>
+    <details class="legend">
+      <summary>{{ icon("chevron", 14) }}How a question is routed</summary>
+      <ol>
+        <li><b>Regex rules</b> Greetings skip retrieval, “page N” goes to the page index, quotes, emails and codes go to BM25</li>
+        <li><b>Semantic analyzer</b> Compares your question with example questions for each route</li>
+        <li><b>LLM picker</b> Decides only when the first two layers are unsure</li>
+      </ol>
+    </details>
+  </aside>
+</div>
+
+{# ---- PDF overlay: opened by the viewer controls and by the "Page N" buttons ---- #}
+<div id="pdf-overlay" class="pdf-overlay" hidden>
+  <div class="pdf-card" role="dialog" aria-modal="true" aria-labelledby="pdf-overlay-title">
+    <div class="pdf-overlay-bar">
+      <span id="pdf-overlay-title" class="pdf-title"></span>
+      <a id="pdf-overlay-newtab" class="btn small" href="#" target="_blank" rel="noopener">New tab {{ icon("external", 14) }}</a>
+      <button type="button" class="icon-btn" data-close-pdf aria-label="Close">{{ icon("x") }}</button>
+    </div>
+    <iframe id="pdf-frame" title="PDF preview"></iframe>
+  </div>
+</div>
+{% endblock %}
