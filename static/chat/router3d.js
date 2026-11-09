@@ -60,7 +60,7 @@ function showDecision(d) {
   $("#decision").classList.toggle("is-empty", emptyResult(d));
   $("#decision-layer").textContent = LAYER_TEXT[d.layer] || d.layer;
   $("#decision-reason").textContent = emptyResult(d)
-    ? `${d.reason ? d.reason + ". " : ""}It searched the documents, but no passage was similar enough to the question, so it answered without them.`
+    ? `${d.reason ? d.reason + ". " : ""}It searched the company documents and nothing was about this question, so it declined instead of guessing: this bot only answers company questions.`
     : d.reason || "";
 }
 const statusText = (d) => `${ROUTE_LABEL[d.route] || d.route} · ${emptyResult(d) ? "no match" : d.layer}`;

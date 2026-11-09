@@ -13,7 +13,7 @@
       <span class="slots" aria-hidden="true">{% for r in ROUTES %}<i{% if r == m.route.route %} class="on"{% endif %}></i>{% endfor %}</span>
       <span class="stamp-route">{{ ROUTE_LABEL.get(m.route.route, m.route.route) }}</span>
       <span class="stamp-layer">via {{ m.route.layer }}</span>
-      {% if empty %}<span class="stamp-empty">nothing relevant</span>{% endif %}
+      {% if empty %}<span class="stamp-empty">out of scope</span>{% endif %}
     </button>
   {% endif %}
   <div class="content" {% if m.role == "assistant" %}data-md{% endif %}>{{ m.content }}</div>

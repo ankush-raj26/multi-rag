@@ -35,6 +35,14 @@ _GREETING = re.compile(
 )
 _PAGE = re.compile(r"\bpage\s*(?:no\.?|number)?\s*(\d{1,4})\b", re.IGNORECASE)
 _EXACT = re.compile(r"(\"[^\"]+\"|\b[\w.+-]+@[\w-]+\.[\w.]+\b|\b[A-Z]{2,}-?\d+\b|\bclause\s+\d)", re.IGNORECASE)
+# Utility questions answered by a TOOL, not the documents: never search for these.
+_MATH = re.compile(r"\d\s*[-+*/x×÷^%]\s*\(?\s*\d")   # "18 * 24", "3x4", "100/7"
+_CLOCK = re.compile(
+    r"\bwhat\s+(time|day|date)\s+is\s+it\b"
+    r"|\b(time|date)\b.*\b(now|today|right\s+now|currently)\b"
+    r"|\b(current|today'?s|now|right\s+now)\b.*\b(time|date)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -50,6 +58,10 @@ def _layer1_regex(query: str) -> RouteDecision | None:
         return RouteDecision("none", "regex", "greeting / small talk — no retrieval needed")
     if m := _PAGE.search(query):
         return RouteDecision("page", "regex", f"mentions page {m.group(1)}", page=int(m.group(1)))
+    if _MATH.search(query):
+        return RouteDecision("none", "regex", "calculation: answered with the calculator tool, no document search")
+    if _CLOCK.search(query):
+        return RouteDecision("none", "regex", "date / time: answered with the clock tool, no document search")
     if _EXACT.search(query):
         return RouteDecision("bm25", "regex", "exact term (quote / email / code) — keyword search")
     return None

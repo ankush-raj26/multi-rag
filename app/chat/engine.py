@@ -32,10 +32,22 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER_ANSWER = "Engine not implemented yet — see app/chat/engine.py"
 
 SYSTEM_PROMPT = (
-    "You are a helpful assistant for a company knowledge base. "
-    "Answer using the conversation and any provided context. "
-    "If the context does not contain the answer, say so plainly. "
-    "You may use tools (calculator, current date/time) when they help."
+    "You are the assistant for this company's internal knowledge base. "
+    "Only answer questions about the company and its documents (policies, leave, expenses, "
+    "remote work, onboarding, IT, benefits, products), using the provided context. "
+    "If a question, or part of one, is about anything else (general knowledge, news, weather, "
+    "places, food, other companies), say briefly that you can only help with company topics, "
+    "and answer only the company part if there is one. "
+    "If the context does not contain the answer, say so plainly instead of guessing. "
+    "Exception: you may use the calculator and current date/time tools for any question."
+)
+# Sent WITHOUT calling the model when a search finds nothing relevant: deterministic, free,
+# and it can't drift into answering general-knowledge questions.
+OUT_OF_SCOPE_REPLY = (
+    "I can only help with questions about the company and its documents, such as leave, "
+    "expenses, remote work, onboarding, IT support and benefits. I couldn't find anything "
+    "about that in them, so I won't guess.\n\n"
+    "I can also do calculations and tell you the current date and time."
 )
 AGENT_PROMPT = (
     "You are a research agent for a company knowledge base. For multi-step questions, "
@@ -71,6 +83,7 @@ class GraphState(TypedDict, total=False):
     route_reason: str       # why, in plain words (shown as a badge in the UI)
     page: int | None        # page number for the 'page' route
     retrieved: int          # passages that passed the relevance threshold (0 = nothing relevant)
+    out_of_scope: bool      # searched, nothing relevant -> fixed reply, the model is not asked
 
 
 def _to_langchain_messages(history: list[Message]) -> list[BaseMessage]:
@@ -89,6 +102,17 @@ def _last_user_text(messages: list[BaseMessage]) -> str:
     for m in reversed(messages):
         if isinstance(m, HumanMessage):
             return m.content if isinstance(m.content, str) else str(m.content)
+    return ""
+
+
+def _previous_user_text(messages: list[BaseMessage]) -> str:
+    """The user message before the latest one ('' if none): context for short follow-ups."""
+    seen = 0
+    for m in reversed(messages):
+        if isinstance(m, HumanMessage):
+            seen += 1
+            if seen == 2:
+                return m.content if isinstance(m.content, str) else str(m.content)
     return ""
 
 
@@ -192,10 +216,12 @@ class ChatEngineImpl:
         mode = state.get("route", "hybrid")
         if self._retriever is None:
             return {"context": "", "sources": []}
-        if hasattr(self._retriever, "retrieve_mode"):
-            hits = self._retriever.retrieve_mode(query, mode, page=state.get("page"))
-        else:
+        if not hasattr(self._retriever, "retrieve_mode"):
             hits = self._retriever.retrieve(query)   # evaluator's fakes only have retrieve()
+        else:
+            hits = self._relevant(query, mode, state)
+            if not hits:   # nothing in the documents is about this: decline, don't ask the model
+                return {"context": "", "sources": [], "retrieved": 0, "out_of_scope": True}
         context = "\n\n".join(
             f"[{h.chunk.source}{' p.' + str(h.chunk.metadata['page']) if h.chunk.metadata.get('page') else ''}] "
             f"{h.chunk.text}"
@@ -203,7 +229,19 @@ class ChatEngineImpl:
         )
         return {"context": context, "sources": _to_sources(hits), "retrieved": len(hits)}
 
+    def _relevant(self, query: str, mode: str, state: GraphState) -> list[RetrievedChunk]:
+        """Relevance-checked search. A short follow-up ("and for part-timers?") means little on
+        its own, so if nothing passes, try once more with the previous question attached."""
+        assert self._retriever is not None
+        hits: list[RetrievedChunk] = self._retriever.retrieve_mode(query, mode, page=state.get("page"))  # type: ignore[attr-defined]
+        previous = _previous_user_text(state["messages"])
+        if not hits and previous:
+            hits = self._retriever.retrieve_mode(f"{previous}\n{query}", mode, page=state.get("page"))  # type: ignore[attr-defined]
+        return hits
+
     def _generate(self, state: GraphState) -> dict[str, Any]:
+        if state.get("out_of_scope"):
+            return {"messages": [AIMessage(content=OUT_OF_SCOPE_REPLY)]}
         prompt: list[BaseMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
         if state.get("context"):
             prompt.append(SystemMessage(content=f"Context from documents:\n{state['context']}"))
@@ -212,6 +250,11 @@ class ChatEngineImpl:
 
     def _deep_agent(self, state: GraphState) -> dict[str, Any]:
         """Agentic RAG: a deepagents agent plans, searches and calculates on its own."""
+        # Never start an agent for a question the documents say nothing about.
+        if self._retriever is not None and hasattr(self._retriever, "retrieve_mode"):
+            if not self._relevant(_last_user_text(state["messages"]), "hybrid", state):
+                return {"messages": [AIMessage(content=OUT_OF_SCOPE_REPLY)], "sources": [], "retrieved": 0,
+                        "out_of_scope": True}
         from deepagents import create_deep_agent
 
         collected: list[RetrievedChunk] = []   # every chunk the agent looked at -> sources
