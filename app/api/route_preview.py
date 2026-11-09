@@ -41,7 +41,8 @@ class RoutePreview(BaseModel):
     hits: list[PreviewHit] = Field(default_factory=list)  # what retrieval would find
     hits_mode: str = ""    # which retrieval mode produced `hits`
     index_chunks: int = 0  # chunks currently in the vector store
-    min_score: float | None = None  # relevance threshold the retriever applies
+    min_score: float | None = None  # relevance floor for each passage
+    min_top_score: float | None = None  # the best passage must reach this (the gate)
 
 
 def _decide(components: Components, query: str) -> tuple[RouteDecision, bool]:
@@ -77,6 +78,7 @@ def preview_route(body: RouteQuery, components: Components = Depends(get_compone
         hits = retriever.retrieve(body.query, k=3)
     preview.hits_mode = mode
     preview.min_score = getattr(retriever, "min_score", None)
+    preview.min_top_score = getattr(retriever, "min_top_score", None)
     preview.hits = [
         PreviewHit(
             source=h.chunk.source,

@@ -16,7 +16,11 @@ RELEVANCE THRESHOLD (`retrieve_mode`, the path the chatbot uses):
 Ranking always returns *something*, even for "trains from Varanasi to Jodhpur", and the
 hybrid score is a rank-fusion number (~0.03) that says nothing about relevance. So every
 routed hit is re-scored by its real cosine similarity to the question and dropped if it is
-below the floor. If nothing passes, the bot answers without documents and shows no sources.
+below the floor. Two numbers, calibrated on the live corpus:
+  gate   the BEST passage must reach it, or the question isn't about the documents at all
+         (stops vague near-misses, e.g. typo-heavy off-topic questions, at ~0.57)
+  floor  each supporting passage must reach it (keeps useful context at ~0.55-0.6)
+If nothing passes, the bot answers without documents and shows no sources.
 `retrieve()` itself stays threshold-free: the milestone contract expects k results.
 """
 
@@ -56,7 +60,13 @@ class HybridRetriever:
     """Embeds the query, searches the store, and (in hybrid mode) fuses with BM25."""
 
     def __init__(
-        self, store: VectorStore, embedder: Embedder, k: int, mode: str, min_score: float | None = None
+        self,
+        store: VectorStore,
+        embedder: Embedder,
+        k: int,
+        mode: str,
+        min_score: float | None = None,
+        min_top_score: float | None = None,
     ) -> None:
         self._store = store
         self._embedder = embedder
@@ -64,6 +74,8 @@ class HybridRetriever:
         self._mode = mode
         # None -> the embedder's own scale (bge-small ~0.55, hash ~0.1); 0 disables the filter
         self.min_score = min_score if min_score is not None else float(getattr(embedder, "relevance_floor", 0.0))
+        gate = min_top_score if min_top_score is not None else getattr(embedder, "relevance_gate", None)
+        self.min_top_score = max(float(gate), self.min_score) if gate is not None else self.min_score
 
     @traceable(run_type="retriever")  # <- makes this a "retriever" run in LangSmith
     def retrieve(self, query: str, k: int | None = None) -> list[RetrievedChunk]:
@@ -126,11 +138,15 @@ class HybridRetriever:
         if missing:   # stores without stored vectors: embed just those chunks, in one batch
             vectors.update(zip((h.chunk.id for h in missing),
                                self._embedder.embed_documents([h.chunk.text for h in missing]), strict=True))
+        rels = {h.chunk.id: round(_cosine(q, vectors[h.chunk.id]), 4) for h in hits}
+        named = {h.chunk.id for h in hits if page is not None and h.chunk.metadata.get("page") == page}
+        # gate: unless the user named a page, the best passage must clearly be about the question
+        if not named and max(rels.values()) < self.min_top_score:
+            return []
         kept: list[RetrievedChunk] = []
         for h in hits:
-            rel = round(_cosine(q, vectors[h.chunk.id]), 4)
-            named_page = page is not None and h.chunk.metadata.get("page") == page
-            if rel >= self.min_score or named_page:
+            rel = rels[h.chunk.id]
+            if rel >= self.min_score or h.chunk.id in named:
                 chunk = h.chunk.model_copy(update={"metadata": {**h.chunk.metadata, "relevance": rel}})
                 kept.append(RetrievedChunk(chunk=chunk, score=h.score))
         return kept
@@ -157,4 +173,5 @@ def get_retriever(
     return HybridRetriever(
         store=store, embedder=embedder, k=k or settings.top_k, mode=mode,
         min_score=getattr(settings, "retrieval_min_score", None),
+        min_top_score=getattr(settings, "retrieval_min_top_score", None),
     )

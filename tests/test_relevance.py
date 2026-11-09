@@ -55,3 +55,12 @@ def test_greeting_has_no_search_count() -> None:
     engine = get_engine(llm=FakeChatModel(), retriever=_retriever(), tools=[])
     result = engine.invoke(message="hi", history=[], session_id="s")
     assert result.route is not None and result.route.route == "none" and result.route.retrieved is None
+
+
+def test_gate_rejects_a_weak_best_match_that_clears_the_floor() -> None:
+    r = _retriever()
+    q = "how many days of annual leave do employees get"
+    strict = HybridRetriever(store=r._store, embedder=r._embedder, k=3, mode="dense", min_score=0.1, min_top_score=0.9)
+    assert strict.retrieve_mode(q, "hybrid") == []          # best match below the gate -> nothing
+    normal = HybridRetriever(store=r._store, embedder=r._embedder, k=3, mode="dense", min_score=0.1, min_top_score=0.35)
+    assert normal.retrieve_mode(q, "hybrid")                # best match clears it -> passages kept

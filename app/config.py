@@ -41,6 +41,7 @@ class Settings:
     top_k: int = 4
     retrieval_mode: str = "hybrid"
     retrieval_min_score: float | None = None  # None -> the embedder's own relevance_floor
+    retrieval_min_top_score: float | None = None  # None -> the embedder's own relevance_gate
     router_llm_picker: bool = True
     llm_provider: str = "anthropic"
     llm_model: str = ""
@@ -67,6 +68,9 @@ def load_settings() -> Settings:
         top_k=_env_int("TOP_K", 4),
         retrieval_mode=os.getenv("RETRIEVAL_MODE", "hybrid"),
         retrieval_min_score=float(os.environ["RETRIEVAL_MIN_SCORE"]) if os.getenv("RETRIEVAL_MIN_SCORE") else None,
+        retrieval_min_top_score=(
+            float(os.environ["RETRIEVAL_MIN_TOP_SCORE"]) if os.getenv("RETRIEVAL_MIN_TOP_SCORE") else None
+        ),
         router_llm_picker=os.getenv("ROUTER_LLM_PICKER", "true").lower() in ("1", "true", "yes", "on"),
         llm_provider=os.getenv("LLM_PROVIDER", "anthropic"),
         llm_model=os.getenv("LLM_MODEL", ""),

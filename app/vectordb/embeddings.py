@@ -49,8 +49,10 @@ class Embedder(Protocol):
 class FastEmbedEmbedder:
     """Wraps a local fastembed model. The model file downloads once, then runs offline."""
 
-    # Cosine below this = "not about the question" for bge-small (overridable: RETRIEVAL_MIN_SCORE).
-    relevance_floor = 0.55
+    # Calibrated on the live corpus: real questions' best match scored >= 0.63, off-topic
+    # ones <= 0.57 (a typo-heavy off-topic question reached 0.57). So:
+    relevance_floor = 0.55   # keep a supporting passage at or above this (RETRIEVAL_MIN_SCORE)
+    relevance_gate = 0.60    # ...but only if the BEST passage reaches this (RETRIEVAL_MIN_TOP_SCORE)
 
     def __init__(self, model_name: str) -> None:
         from fastembed import TextEmbedding  # imported lazily so other backends don't need it
@@ -80,6 +82,7 @@ class GoogleEmbedder:
     """Hosted Gemini embeddings (needs GOOGLE_API_KEY)."""
 
     relevance_floor = 0.55
+    relevance_gate = 0.60
 
     def __init__(self, model_name: str) -> None:
         from langchain_google_genai import GoogleGenerativeAIEmbeddings
