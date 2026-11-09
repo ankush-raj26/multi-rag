@@ -350,3 +350,8 @@ details[open] > summary .icon { transform: none; }
   .intro { padding-top: 4vh; }
   .intro h1 { font-size: 28px; }
 }
+
+/* searched, but nothing passed the relevance threshold: muted, struck-through slot */
+.stamp.is-empty .slots i.on { background: transparent; outline: 1px solid var(--muted); }
+.stamp-empty { color: var(--muted); font-style: italic; }
+.decision.is-empty .decision-route { color: var(--muted); }

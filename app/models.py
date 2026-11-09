@@ -62,6 +62,9 @@ class RouteInfo(BaseModel):
     route: str            # none | dense | bm25 | hybrid | page | agentic
     layer: str            # regex | semantic | llm | fallback
     reason: str = ""
+    # How many passages passed the relevance threshold. None = no search was run
+    # (route "none"); 0 = searched, but nothing in the documents was about the question.
+    retrieved: int | None = None
 
 
 class EngineResult(BaseModel):

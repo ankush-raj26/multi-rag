@@ -20,6 +20,15 @@ import re
 from typing import Protocol
 
 _WORD = re.compile(r"[a-z0-9]+")
+# Words that carry no topic. Without this, "trains from X to Y" looks related to every
+# chunk containing "from" and "to" (only used by the offline HashEmbedder).
+_STOPWORDS = frozenset(
+    "a an the and or but of to in on at by for from with about as into over is are was were be been being "
+    "do does did doing have has had i me my we our you your he she it its they them their this that these "
+    "those what which who whom when where why how can could should would will shall may might must "
+    "not no yes so if then than too very just also up down out off all any some such only own same "
+    "show tell give get got let please".split()
+)
 
 
 class Embedder(Protocol):
@@ -39,6 +48,9 @@ class Embedder(Protocol):
 
 class FastEmbedEmbedder:
     """Wraps a local fastembed model. The model file downloads once, then runs offline."""
+
+    # Cosine below this = "not about the question" for bge-small (overridable: RETRIEVAL_MIN_SCORE).
+    relevance_floor = 0.55
 
     def __init__(self, model_name: str) -> None:
         from fastembed import TextEmbedding  # imported lazily so other backends don't need it
@@ -66,6 +78,8 @@ class FastEmbedEmbedder:
 
 class GoogleEmbedder:
     """Hosted Gemini embeddings (needs GOOGLE_API_KEY)."""
+
+    relevance_floor = 0.55
 
     def __init__(self, model_name: str) -> None:
         from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -96,6 +110,9 @@ class HashEmbedder:
     which is enough for tests and for a fully offline demo.
     """
 
+    # bag-of-words over topic words: one shared topic word already scores ~0.2-0.3
+    relevance_floor = 0.3
+
     def __init__(self, dimension: int = 384) -> None:
         self._dim = dimension
 
@@ -105,7 +122,9 @@ class HashEmbedder:
 
     def _embed(self, text: str) -> list[float]:
         vec = [0.0] * self._dim
-        for word in _WORD.findall(text.lower()):               # count each word
+        for word in _WORD.findall(text.lower()):               # count each topic word
+            if word in _STOPWORDS:
+                continue
             bucket = int(hashlib.md5(word.encode()).hexdigest(), 16) % self._dim
             vec[bucket] += 1.0
         norm = math.sqrt(sum(v * v for v in vec)) or 1.0       # L2-normalise -> cosine-ready

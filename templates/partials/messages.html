@@ -4,13 +4,16 @@
                       "page": "Page-index RAG", "agentic": "Deep agent"} %}
 {% for m in messages %}
 <article class="message {{ m.role }}"
-  {% if m.route %}data-route="{{ m.route.route }}" data-layer="{{ m.route.layer }}" data-reason="{{ m.route.reason }}"{% endif %}>
+  {% if m.route %}data-route="{{ m.route.route }}" data-layer="{{ m.route.layer }}" data-reason="{{ m.route.reason }}"{% if m.route.retrieved is not none %} data-retrieved="{{ m.route.retrieved }}"{% endif %}{% endif %}>
   {# Which route the 3-layer router chose: the stamp replays it in the router panel #}
   {% if m.route %}
-    <button type="button" class="stamp" data-replay title="{{ m.route.reason }}">
+    {# searched but nothing passed the relevance threshold: say so instead of just naming the route #}
+    {% set empty = m.route.retrieved == 0 and m.route.route != "none" %}
+    <button type="button" class="stamp{% if empty %} is-empty{% endif %}" data-replay title="{{ m.route.reason }}">
       <span class="slots" aria-hidden="true">{% for r in ROUTES %}<i{% if r == m.route.route %} class="on"{% endif %}></i>{% endfor %}</span>
       <span class="stamp-route">{{ ROUTE_LABEL.get(m.route.route, m.route.route) }}</span>
       <span class="stamp-layer">via {{ m.route.layer }}</span>
+      {% if empty %}<span class="stamp-empty">nothing relevant</span>{% endif %}
     </button>
   {% endif %}
   <div class="content" {% if m.role == "assistant" %}data-md{% endif %}>{{ m.content }}</div>

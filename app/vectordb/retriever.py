@@ -11,6 +11,13 @@ score calibration — it just rewards chunks that rank high on either list.
 
 `retrieve` is decorated with @traceable(run_type="retriever") so it shows up as a
 proper "retriever" span in LangSmith (a requirement of M2 + M7).
+
+RELEVANCE THRESHOLD (`retrieve_mode`, the path the chatbot uses):
+Ranking always returns *something*, even for "trains from Varanasi to Jodhpur", and the
+hybrid score is a rank-fusion number (~0.03) that says nothing about relevance. So every
+routed hit is re-scored by its real cosine similarity to the question and dropped if it is
+below the floor. If nothing passes, the bot answers without documents and shows no sources.
+`retrieve()` itself stays threshold-free: the milestone contract expects k results.
 """
 
 from __future__ import annotations
@@ -21,7 +28,7 @@ from langsmith import traceable
 
 from app.models import RetrievedChunk
 from app.vectordb.embeddings import Embedder
-from app.vectordb.store import VectorStore
+from app.vectordb.store import VectorStore, _cosine
 
 _RRF_K = 60  # standard RRF constant; dampens the weight of lower ranks
 
@@ -48,11 +55,15 @@ def _rrf(result_lists: list[list[RetrievedChunk]], k: int) -> list[RetrievedChun
 class HybridRetriever:
     """Embeds the query, searches the store, and (in hybrid mode) fuses with BM25."""
 
-    def __init__(self, store: VectorStore, embedder: Embedder, k: int, mode: str) -> None:
+    def __init__(
+        self, store: VectorStore, embedder: Embedder, k: int, mode: str, min_score: float | None = None
+    ) -> None:
         self._store = store
         self._embedder = embedder
         self._k = k
         self._mode = mode
+        # None -> the embedder's own scale (bge-small ~0.55, hash ~0.1); 0 disables the filter
+        self.min_score = min_score if min_score is not None else float(getattr(embedder, "relevance_floor", 0.0))
 
     @traceable(run_type="retriever")  # <- makes this a "retriever" run in LangSmith
     def retrieve(self, query: str, k: int | None = None) -> list[RetrievedChunk]:
@@ -97,7 +108,32 @@ class HybridRetriever:
             on_page = [h for h in hits if h.chunk.metadata.get("page") == page]
             others = [h for h in hits if h.chunk.metadata.get("page") != page]
             hits = on_page + others
-        return hits[:top_k]
+        return self._keep_relevant(query, hits, page)[:top_k]
+
+    def _keep_relevant(self, query: str, hits: list[RetrievedChunk], page: int | None) -> list[RetrievedChunk]:
+        """Score each hit by cosine(question, chunk) and drop the ones below `min_score`.
+
+        The score is stored on the chunk as metadata["relevance"] (shown in the UI);
+        the hit's own rank score is left untouched. A chunk from the page the user
+        explicitly asked for is always kept: "what is on page 4" names its answer.
+        """
+        if not hits:
+            return []
+        q = self._embedder.embed_query(query)
+        ids = [h.chunk.id for h in hits]
+        vectors = self._store.vectors_for(ids) if hasattr(self._store, "vectors_for") else {}
+        missing = [h for h in hits if h.chunk.id not in vectors]
+        if missing:   # stores without stored vectors: embed just those chunks, in one batch
+            vectors.update(zip((h.chunk.id for h in missing),
+                               self._embedder.embed_documents([h.chunk.text for h in missing]), strict=True))
+        kept: list[RetrievedChunk] = []
+        for h in hits:
+            rel = round(_cosine(q, vectors[h.chunk.id]), 4)
+            named_page = page is not None and h.chunk.metadata.get("page") == page
+            if rel >= self.min_score or named_page:
+                chunk = h.chunk.model_copy(update={"metadata": {**h.chunk.metadata, "relevance": rel}})
+                kept.append(RetrievedChunk(chunk=chunk, score=h.score))
+        return kept
 
 
 def get_retriever(
@@ -118,4 +154,7 @@ def get_retriever(
 
         embedder = get_embedder()
     mode = getattr(settings, "retrieval_mode", "hybrid")
-    return HybridRetriever(store=store, embedder=embedder, k=k or settings.top_k, mode=mode)
+    return HybridRetriever(
+        store=store, embedder=embedder, k=k or settings.top_k, mode=mode,
+        min_score=getattr(settings, "retrieval_min_score", None),
+    )

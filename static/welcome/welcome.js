@@ -405,7 +405,8 @@ function updatePanels() {
   list.replaceChildren();
   if (d.route === "none") empty.textContent = "Nothing. It was small talk, so nothing was fetched.";
   else if (!d.live) empty.textContent = "Start the server to see the real passages.";
-  else if (!d.hits.length) empty.textContent = "No passages yet. Index documents with: uv run python -m app.ingest";
+  else if (!d.index_chunks) empty.textContent = "No passages yet. Index documents with: uv run python -m app.ingest";
+  else if (!d.hits.length) empty.textContent = "Nothing in the documents is similar enough to this question, so the bot answers without them.";
   else empty.textContent = "";
   for (const h of d.hits) {
     const li = document.createElement("li");

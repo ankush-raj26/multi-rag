@@ -52,12 +52,18 @@ const tagsEl = $("#sheet-tags");
 const statusEl = $("#router-status");
 
 // ---------------------------------------------------------------- the decision card (works without WebGL)
+const emptyResult = (d) => d && d.route !== "none" && d.retrieved === 0;   // searched, nothing relevant
 function showDecision(d) {
   $("#decision").hidden = false;
-  $("#decision-route").textContent = ROUTE_LABEL[d.route] || d.route;
+  const label = ROUTE_LABEL[d.route] || d.route;
+  $("#decision-route").textContent = emptyResult(d) ? `${label}: nothing relevant` : label;
+  $("#decision").classList.toggle("is-empty", emptyResult(d));
   $("#decision-layer").textContent = LAYER_TEXT[d.layer] || d.layer;
-  $("#decision-reason").textContent = d.reason || "";
+  $("#decision-reason").textContent = emptyResult(d)
+    ? `${d.reason ? d.reason + ". " : ""}It searched the documents, but no passage was similar enough to the question, so it answered without them.`
+    : d.reason || "";
 }
+const statusText = (d) => `${ROUTE_LABEL[d.route] || d.route} · ${emptyResult(d) ? "no match" : d.layer}`;
 function setStatus(text, live = false) {
   statusEl.textContent = text;
   statusEl.classList.toggle("is-live", live);
@@ -245,12 +251,13 @@ function draw(now) {
     pos = packetAt(state.frames, p);
     if (p >= 1 && state.mode === "playing") {
       state.mode = "done";
-      setStatus(`${ROUTE_LABEL[state.decision.route]} · ${state.decision.layer}`);
+      setStatus(statusText(state.decision));
     }
   }
   const thinking = state.mode === "thinking";
   const statuses = state.decision && !thinking && state.mode !== "idle" ? gateStatus(p) : ["waiting", "waiting", "waiting"];
-  const landed = state.decision && !thinking && state.mode !== "idle" && p >= landedAt();
+  // an empty search lands in the bin but the bin stays unlit: nothing came out of it
+  const landed = state.decision && !thinking && state.mode !== "idle" && p >= landedAt() && !emptyResult(state.decision);
   const binIdx = state.decision ? ROUTES.indexOf(state.decision.route) : -1;
 
   // packet: waits and turns while thinking, then follows its path
@@ -381,12 +388,21 @@ document.addEventListener("router:play", (e) => {
   showDecision(d);
   if (REDUCE || d.instant || !rig) {
     state.mode = "done";
-    setStatus(`${ROUTE_LABEL[d.route] || d.route} · ${d.layer}`);
+    setStatus(statusText(d));
   } else {
     state.mode = "playing";
     state.t0 = performance.now();
     setStatus(`Dropping through the gates`, true);
   }
+  wake();
+});
+// the answer finished: now we know whether the search found anything relevant
+document.addEventListener("router:outcome", (e) => {
+  const d = e.detail;
+  if (!state.decision || state.decision.route !== d.route) return;
+  state.decision = { ...state.decision, retrieved: d.retrieved };
+  showDecision(state.decision);
+  if (state.mode === "done") setStatus(statusText(state.decision));
   wake();
 });
 document.addEventListener("router:resize", resize);

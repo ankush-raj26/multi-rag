@@ -41,6 +41,7 @@ class RoutePreview(BaseModel):
     hits: list[PreviewHit] = Field(default_factory=list)  # what retrieval would find
     hits_mode: str = ""    # which retrieval mode produced `hits`
     index_chunks: int = 0  # chunks currently in the vector store
+    min_score: float | None = None  # relevance threshold the retriever applies
 
 
 def _decide(components: Components, query: str) -> tuple[RouteDecision, bool]:
@@ -75,12 +76,13 @@ def preview_route(body: RouteQuery, components: Components = Depends(get_compone
     else:
         hits = retriever.retrieve(body.query, k=3)
     preview.hits_mode = mode
+    preview.min_score = getattr(retriever, "min_score", None)
     preview.hits = [
         PreviewHit(
             source=h.chunk.source,
             chunk_id=h.chunk.id,
             page=h.chunk.metadata.get("page"),
-            score=round(h.score, 4),
+            score=round(h.chunk.metadata.get("relevance", h.score), 4),   # cosine similarity
             snippet=h.chunk.text[:220],
         )
         for h in hits

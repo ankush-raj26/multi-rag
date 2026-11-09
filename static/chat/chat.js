@@ -26,7 +26,9 @@
   function decisionOf(article) {
     if (!article || !article.dataset.route) return null;
     const { route, layer, reason } = article.dataset;
-    return { route, layer, reason };
+    // retrieved: passages that passed the relevance threshold (absent = no search was run)
+    const retrieved = article.dataset.retrieved === undefined ? null : Number(article.dataset.retrieved);
+    return { route, layer, reason, retrieved };
   }
   function replay(article, opts = {}) {
     const d = decisionOf(article);
@@ -117,6 +119,9 @@
       // the deep agent can fall back to hybrid: replay only if the final route changed
       if (a.dataset.route && (!p.route || p.route.route !== a.dataset.route)) replay(a);
       else a.querySelector(".stamp")?.classList.add("is-playing");
+      // the search result is only known now: tell the router panel if nothing was relevant
+      const d = decisionOf(a);
+      if (d) emit("router:outcome", d);
       if (!a.dataset.route) emit("router:idle");
     }
   }

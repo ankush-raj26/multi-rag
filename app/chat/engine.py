@@ -70,6 +70,7 @@ class GraphState(TypedDict, total=False):
     route_layer: str        # which layer decided: regex|semantic|llm|fallback
     route_reason: str       # why, in plain words (shown as a badge in the UI)
     page: int | None        # page number for the 'page' route
+    retrieved: int          # passages that passed the relevance threshold (0 = nothing relevant)
 
 
 def _to_langchain_messages(history: list[Message]) -> list[BaseMessage]:
@@ -113,7 +114,8 @@ def _to_sources(hits: list[RetrievedChunk]) -> list[Source]:
             Source(
                 source=h.chunk.source,
                 chunk_id=h.chunk.id,
-                score=h.score,
+                # real cosine similarity when the retriever measured it, else the rank score
+                score=h.chunk.metadata.get("relevance", h.score),
                 snippet=h.chunk.text[:200],
                 page=h.chunk.metadata.get("page"),  # set for PDF chunks -> UI can jump
             )
@@ -199,7 +201,7 @@ class ChatEngineImpl:
             f"{h.chunk.text}"
             for h in hits
         )
-        return {"context": context, "sources": _to_sources(hits)}
+        return {"context": context, "sources": _to_sources(hits), "retrieved": len(hits)}
 
     def _generate(self, state: GraphState) -> dict[str, Any]:
         prompt: list[BaseMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
@@ -218,7 +220,12 @@ class ChatEngineImpl:
         @tool
         def search_knowledge_base(query: str) -> str:
             """Search the indexed company documents and return the most relevant passages."""
-            hits = retriever.retrieve(query) if retriever else []
+            if retriever is None:
+                hits = []
+            elif hasattr(retriever, "retrieve_mode"):
+                hits = retriever.retrieve_mode(query, "hybrid")   # same relevance threshold as RAG
+            else:
+                hits = retriever.retrieve(query)
             collected.extend(hits)
             if not hits:
                 return "No matching passages found."
@@ -240,7 +247,8 @@ class ChatEngineImpl:
             fallback = self._retrieve(cast(GraphState, {**state, "route": "hybrid"}))
             answer = self._generate(cast(GraphState, {**state, **fallback}))
             return {**fallback, **answer, "route": "hybrid", "route_reason": reason}
-        return {"messages": [reply], "sources": _to_sources(collected)}
+        sources = _to_sources(collected)
+        return {"messages": [reply], "sources": sources, "retrieved": len(sources)}
 
     # ----- wiring ---------------------------------------------------------
     def _build_graph(self) -> Any:
@@ -282,7 +290,8 @@ class ChatEngineImpl:
         route = None
         if final.get("route"):
             route = RouteInfo(
-                route=final["route"], layer=final.get("route_layer", ""), reason=final.get("route_reason", "")
+                route=final["route"], layer=final.get("route_layer", ""), reason=final.get("route_reason", ""),
+                retrieved=final.get("retrieved") if final["route"] != "none" else None,
             )
         return EngineResult(answer=answer, sources=final.get("sources", []), route=route)
 

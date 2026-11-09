@@ -116,6 +116,10 @@ class PersistentVectorStore:
     def count(self) -> int:
         return len(self._records)
 
+    def vectors_for(self, chunk_ids: list[str]) -> dict[str, list[float]]:
+        """Stored dense vectors for these chunk ids (used to score relevance)."""
+        return {cid: self._records[cid]["vector"] for cid in chunk_ids if cid in self._records}
+
     # ----- dense search (the M5 contract) --------------------------------
     def search(self, query_embedding: list[float], k: int) -> list[RetrievedChunk]:
         """Return up to k chunks most similar to the query vector, best first."""
