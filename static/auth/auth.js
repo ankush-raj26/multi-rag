@@ -58,23 +58,9 @@
   addEventListener("resize", () => moveInk(current === "forgot" ? "signin" : current));
 
   // ---- the lock: pins settle on the shear line as the key is cut ----------
-  const PINS = $$(".pin-bar"), blade = $("#lk-blade"), note = $("#lk-note"), state = $("#lock-state");
-  const SHEAR = 100, TOP = 56, N = PINS.length, MIN = 8, MAX_CUTS = 12;
-  // deterministic cut depths from the position only, never from the characters typed
-  const depth = (i) => 6 + ((i * 7919) % 11) * 1.4;
-  function bladePath(cuts) {
-    const x0 = 20, x1 = 400, top = 132, bottom = 154;
-    if (cuts <= 0) return `M${x0} ${top} H${x1} v${bottom - top} H${x0} z`;
-    const n = Math.min(cuts, MAX_CUTS), step = (x1 - x0 - 24) / n;
-    let d = `M${x0} ${top} H${x1} V${bottom} `;
-    for (let i = n - 1; i >= 0; i--) {
-      const dp = depth(i), xr = x0 + 24 + (i + 1) * step, xl = x0 + 24 + i * step;
-      d += `H${xr.toFixed(1)} v${-dp.toFixed(1)} H${(xl + step * 0.3).toFixed(1)} v${dp.toFixed(1)} `;
-    }
-    return d + `H${x0} z`;
-  }
+  const PINS = $$(".pin-bar"), note = $("#lk-note"), state = $("#lock-state");
+  const SHEAR = 100, TOP = 56, N = PINS.length, MIN = 8;
   function cut(n) {
-    if (blade) blade.setAttribute("d", bladePath(n));
     const settled = Math.min(n, N);
     PINS.forEach((pin, i) => {
       // settled pins sit on the shear line; the rest float above it at their own height
@@ -82,7 +68,7 @@
       const y = i < settled ? TOP + 2 : TOP;
       if (!animate(pin, { height: h, y }, { type: "spring", stiffness: 260, damping: 18, mass: 0.6 })) { pin.setAttribute("height", h); pin.setAttribute("y", y); }
     });
-    if (note) note.textContent = n === 0 ? "no cuts yet" : n < MIN ? `${n} cut${n > 1 ? "s" : ""} · too few` : `${Math.min(n, MAX_CUTS)} cuts · it turns`;
+    if (note) note.textContent = `${settled} of ${N} pins set${n >= MIN ? " · it turns" : ""}`;
     if (state) state.textContent = n >= MIN ? "open" : "locked";
   }
   $$("input[data-cuts]").forEach((inp) => {

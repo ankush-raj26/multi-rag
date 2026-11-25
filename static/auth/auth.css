@@ -62,15 +62,9 @@ button, input { font: inherit; color: inherit; }
 .lk-text--r { fill: var(--accent); }
 .pin-chamber { fill: color-mix(in oklab, var(--ink) 5%, transparent); stroke: var(--line-faint); stroke-width: 1; }
 .pin-bar { fill: var(--ink); }
-.lk-key { fill: color-mix(in oklab, var(--accent) 22%, transparent); stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; transition: d 260ms var(--ease); }
-.lk-bow { fill: none; stroke: var(--accent); stroke-width: 1.5; }
 .lock-cap { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 0; font: 500 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
-.lock-cap span:first-child { color: var(--accent); }
+.lock-cap { color: var(--accent); }
 
-.facts { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; max-width: 44ch; }
-.facts li { position: relative; padding-left: 22px; color: var(--ink-soft); font-size: 14px; }
-.facts li::before { content: ""; position: absolute; left: 0; top: .72em; width: 12px; height: 1px; background: var(--accent); }
-.facts b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* ---------- the desk ---------- */
 .desk {
@@ -94,28 +88,21 @@ button, input { font: inherit; color: inherit; }
 body[data-mode="verify"] .desk-tabs, body[data-mode="reset"] .desk-tabs { display: none; }
 
 .panels { position: relative; }
-.panel { display: none; flex-direction: column; gap: 22px; }
+.panel { display: none; flex-direction: column; gap: 18px; }
 .panel.is-on { display: flex; }
 .panel-title { margin: 0; font: 600 24px/1.15 var(--display); letter-spacing: -0.01em; }
 
-/* fields: a rule, not a box */
-.field { position: relative; display: block; padding-top: 16px; }
+/* fields: quiet boxes, label above */
+.field { display: flex; flex-direction: column; gap: 7px; }
+.field span { font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--pink-soft); }
 .field input {
-  width: 100%; height: 38px; padding: 0 0 6px; border: 0; border-bottom: 1px solid var(--pline-faint); border-radius: 0;
-  background: transparent; color: var(--pink); font-size: 16px; min-width: 0;
+  width: 100%; height: 46px; padding: 0 14px; border: 1px solid var(--pline-faint); border-radius: 3px;
+  background: #fff; color: var(--pink); font-size: 15px; min-width: 0;
+  transition: border-color 140ms var(--ease), box-shadow 140ms var(--ease);
 }
-.field input:focus { outline: 0; }
-.field span {
-  position: absolute; left: 0; top: 22px; font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
-  color: var(--pink-soft); pointer-events: none; transform-origin: 0 0;
-  transition: transform 220ms var(--ease), color 160ms var(--ease);
-  transform: translateY(0) scale(1.18);
-}
-.field input:focus + span, .field input:not(:placeholder-shown) + span { transform: translateY(-20px) scale(1); color: var(--accent-paper); }
-.field i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--accent-paper); transform: scaleX(0); transform-origin: 0 50%; transition: transform 320ms var(--ease); }
-.field input:focus ~ i { transform: scaleX(1); }
-.field input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px var(--paper-card) inset; -webkit-text-fill-color: var(--pink); }
-.field--code input { font: 600 30px/1 var(--mono); letter-spacing: .45em; height: 52px; }
+.field input:hover { border-color: color-mix(in oklab, var(--pink) 32%, transparent); }
+.field input:focus { outline: 0; border-color: var(--accent-paper); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-paper) 18%, transparent); }
+.field--code input { font: 600 26px/1 var(--mono); letter-spacing: .4em; text-align: center; height: 56px; }
 .field-hint { margin: -6px 0 0; font-size: 14px; color: var(--pink-soft); max-width: 44ch; }
 
 .panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 2px; }
@@ -142,5 +129,5 @@ body[data-mode="verify"] .desk-tabs, body[data-mode="reset"] .desk-tabs { displa
 .js [data-in] { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   .js [data-in] { opacity: 1; }
-  .lk-key, .field span, .field i, .kbtn--primary::before { transition: none; }
+  .kbtn--primary::before { transition: none; }
 }
