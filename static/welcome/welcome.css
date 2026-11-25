@@ -1,9 +1,3 @@
-/* ==========================================================================
-   Routing assembly · landing page styles
-   A technical drawing set: off-white line work on Prussian blue, one redline
-   accent reserved for the visitor's own question and the router's stamps.
-   ========================================================================== */
-
 @font-face { font-family: "Archivo"; font-weight: 400; font-display: swap; src: url("../fonts/archivo-latin-400-normal.woff2") format("woff2"); }
 @font-face { font-family: "Archivo"; font-weight: 500; font-display: swap; src: url("../fonts/archivo-latin-500-normal.woff2") format("woff2"); }
 @font-face { font-family: "Archivo"; font-weight: 600; font-display: swap; src: url("../fonts/archivo-latin-600-normal.woff2") format("woff2"); }
@@ -11,21 +5,20 @@
 @font-face { font-family: "JetBrains Mono"; font-weight: 400; font-display: swap; src: url("../fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2"); }
 @font-face { font-family: "JetBrains Mono"; font-weight: 500; font-display: swap; src: url("../fonts/jetbrains-mono-latin-500-normal.woff2") format("woff2"); }
 
-/* --- tokens: six colour roles, two families (mono is for data and code only) */
 :root {
-  --sc-canvas:     #0D2740;   /* Prussian blue drawing ground            */
+  --sc-canvas:     #0D2740;
   --sc-surface:    #12324F;
-  --sc-ink:        #EAF0F6;   /* line work + type                        */
-  --sc-ink-soft:   #9DB4CA;   /* tinted from the ground, never flat grey */
-  --sc-accent:     #FF6B45;   /* redline: only for YOUR question + stamps */
+  --sc-ink:        #EAF0F6;
+  --sc-ink-soft:   #9DB4CA;
+  --sc-accent:     #FF6B45;
   --sc-accent-ink: #1A0D08;
   --sc-font-display: "Archivo", system-ui, sans-serif;
   --sc-font-text:    "Archivo", system-ui, sans-serif;
   --sc-font-mono:    "JetBrains Mono", ui-monospace, monospace;
   --sc-shadow-color: 212 70% 6%;
-  --sc-r-sm: 2px; --sc-r-md: 2px; --sc-r-lg: 2px;   /* drawn corners: square */
+  --sc-r-sm: 2px; --sc-r-md: 2px; --sc-r-lg: 2px;
 
-  --deep: #0A2036;            /* the details sheet: one step deeper       */
+  --deep: #0A2036;
   --line: color-mix(in oklab, var(--sc-ink) 72%, transparent);
   --line-faint: color-mix(in oklab, var(--sc-ink) 16%, transparent);
   --grid: 28px;
@@ -33,10 +26,9 @@
 
 body { line-height: 1.6; letter-spacing: 0.002em; }
 
-/* --- light "print" sheets: re-ink the subtree AND restate color (taste.md) */
 .sheet--print {
   --sc-ink: #12304C; --sc-ink-soft: #46617D;
-  --sc-accent: #C2410C; --sc-accent-ink: #FFF5F0;    /* same hue, darker stop for the light ground */
+  --sc-accent: #C2410C; --sc-accent-ink: #FFF5F0;
   --line: color-mix(in oklab, #12304C 70%, transparent);
   --line-faint: color-mix(in oklab, #12304C 14%, transparent);
   color: var(--sc-ink);
@@ -56,7 +48,6 @@ body { line-height: 1.6; letter-spacing: 0.002em; }
 }
 .sheet--clear { position: relative; z-index: 4; background: transparent; }
 
-/* --- far plane: drafting grid (fixed, drifts slower than the page) -------- */
 .paper {
   position: fixed; inset: -60px 0; z-index: 0; pointer-events: none;
   background:
@@ -66,7 +57,6 @@ body { line-height: 1.6; letter-spacing: 0.002em; }
     linear-gradient(90deg, color-mix(in oklab, var(--sc-ink) 7%, transparent) 1px, transparent 1px) 0 0 / calc(var(--grid) * 5) calc(var(--grid) * 5);
   will-change: transform;
 }
-/* --- mid plane: the 3D rig --------------------------------------------------- */
 .rig-flat { padding: 8vh 0 8vh 36vw; }
 @media (max-width: 860px) { .rig-flat { padding: 46vh 6vw 30vh; } }
 .rig, .rig-flat { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100svh; z-index: 1; pointer-events: none; transition: opacity 260ms var(--sc-ease-out); }
@@ -76,7 +66,6 @@ body { line-height: 1.6; letter-spacing: 0.002em; }
 .rig-flat .fl-red { fill: color-mix(in oklab, var(--sc-accent) 30%, transparent); stroke: var(--sc-accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .rig-flat text { fill: var(--sc-ink-soft); font: 0.55px var(--sc-font-mono); letter-spacing: 0.04em; }
 
-/* --- labels that ride the 3D scene ------------------------------------------ */
 .tags { position: fixed; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
 .bintag { position: absolute; left: 0; top: 0; white-space: nowrap; font: 500 10px/1 var(--sc-font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--sc-ink-soft); opacity: 0; will-change: transform, opacity; }
 .tag, .packet-tag, .stamp { position: absolute; left: 0; top: 0; will-change: transform, opacity; white-space: nowrap; }
@@ -101,7 +90,6 @@ body { line-height: 1.6; letter-spacing: 0.002em; }
   box-shadow: 0 2px 6px hsl(var(--sc-shadow-color) / 0.35);
 }
 
-/* --- shared bits ------------------------------------------------------------ */
 .sheet-code {
   font: 500 var(--sc-t-xs)/1.2 var(--sc-font-mono); letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--sc-ink-soft); margin: 0 0 var(--sc-5);
@@ -109,7 +97,6 @@ body { line-height: 1.6; letter-spacing: 0.002em; }
 .visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 
-/* --- the title block: fixed chrome, bottom right, is the navigation --------- */
 .titleblock {
   position: fixed; right: 16px; bottom: 16px; z-index: var(--sc-z-chrome);
   width: min(360px, calc(100vw - 32px));
@@ -135,7 +122,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 @media (hover: hover) and (pointer: fine) { .tb-sheets a:hover { color: #EAF0F6; background: color-mix(in oklab, #EAF0F6 6%, transparent); } }
 .tb-sheets a:active { translate: 0 1px; }
 
-/* ============================================================== R-1 hero == */
 .hero { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; }
 .hero__copy { min-width: 0; }
 .hero__copy {
@@ -176,7 +162,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 .chip.is-on { color: var(--sc-accent); border-color: var(--sc-accent); }
 .qform__status { min-height: 1.4em; margin: var(--sc-3) 0 0; font: 400 12px/1.4 var(--sc-font-mono); color: var(--sc-ink-soft); }
 
-/* near plane: dimension line that overtakes the rig */
 .dimline { position: absolute; z-index: 5; right: 7vw; top: 10vh; width: 28px; height: 58vh; overflow: visible; }
 .dimline path { fill: none; stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .dimline__label {
@@ -185,7 +170,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
   writing-mode: vertical-rl; rotate: 180deg; translate: 0 -50%;
 }
 
-/* ============================================================ R-2 ledger == */
 .ledger { padding-bottom: var(--sc-8); }
 .ledger__title { font: 600 var(--sc-t-2xl)/1.04 var(--sc-font-display); letter-spacing: -0.025em; margin: 0 0 var(--sc-7); max-width: 22ch; text-wrap: balance; }
 .ledger__table { width: 100%; max-width: 60rem; border-collapse: collapse; font-size: var(--sc-t-sm); }
@@ -195,7 +179,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 .ledger__table td:last-child { color: var(--sc-accent); font-weight: 500; }
 .ledger__turn { margin: var(--sc-8) 0 0; font-size: var(--sc-t-lg); line-height: 1.45; max-width: 40ch; text-wrap: pretty; }
 
-/* ============================================================== R-3 drop == */
 .drop { display: grid; align-items: center; }
 .log {
   position: relative; z-index: 6; width: min(25rem, 34vw); margin-left: var(--sc-gutter);
@@ -219,7 +202,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 .chips--log { margin-top: var(--sc-4); align-items: center; }
 .chips__label { font-size: 11px; color: var(--sc-ink-soft); margin-right: 2px; }
 
-/* =========================================================== R-4 details == */
 .details { display: flex; align-items: center; }
 .rail { gap: clamp(1rem, 2vw, 1.75rem); padding-inline: var(--sc-gutter) 30vw; align-items: stretch; }
 .rail__lead { flex: 0 0 clamp(17rem, 26vw, 24rem); align-self: center; }
@@ -271,7 +253,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 .rail > :nth-child(3) { --i: 1; } .rail > :nth-child(4) { --i: 2; } .rail > :nth-child(5) { --i: 3; }
 .rail > :nth-child(6) { --i: 4; } .rail > :nth-child(7) { --i: 5; }
 
-/* ============================================================ R-5 wiring == */
 .wiring { display: grid; grid-template-columns: minmax(19rem, 1fr) 1.45fr; gap: var(--sc-7); align-items: center; padding-inline: var(--sc-gutter); padding-right: max(var(--sc-gutter), 390px); }
 .wiring__title { font: 600 var(--sc-t-xl)/1.04 var(--sc-font-display); letter-spacing: -0.025em; margin: 0; text-wrap: balance; }
 .wiring__body { color: var(--sc-ink-soft); margin: var(--sc-5) 0 0; max-width: 36ch; }
@@ -293,7 +274,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
   .graph .nodes g, .graph .edge-notes text { opacity: 1; }
 }
 
-/* =============================================================== R-6 ask == */
 .ask { padding-bottom: var(--sc-6); }
 .ask__grid { display: grid; grid-template-columns: 1fr 1.15fr; gap: var(--sc-8); align-items: start; padding-right: max(var(--sc-gutter), 380px); }
 .ask__title { font: 600 var(--sc-t-2xl)/1 var(--sc-font-display); letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
@@ -320,7 +300,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
   font: 400 11px/1.4 var(--sc-font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--sc-ink-soft);
 }
 
-/* ================================================================ mobile == */
 @media (max-width: 860px) {
   .titleblock { right: 0; left: 0; bottom: 0; width: auto; border-inline: 0; border-bottom: 0; }
   .tb-head { display: none; }

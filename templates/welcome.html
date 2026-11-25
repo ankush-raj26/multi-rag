@@ -7,8 +7,8 @@
 <meta name="description" content="Type a question and watch the chatbot's three-layer router decide whether it needs your documents at all. Then ask the real bot.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230D2740'/><path d='M8 9h16M8 16h16M8 23h16' stroke='%23EAF0F6' stroke-width='2'/><circle cx='16' cy='16' r='3' fill='%23FF6B45'/></svg>">
 <link rel="preload" href="{{ url_for('static', path='fonts/archivo-latin-500-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="{{ url_for('static', path='welcome/scrollcraft.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', path='welcome/welcome.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='welcome/scrollcraft.css') }}?v={{ static_v('welcome/scrollcraft.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='welcome/welcome.css') }}?v={{ static_v('welcome/welcome.css') }}">
 <script type="importmap">{ "imports": { "three": "{{ url_for('static', path='vendor/three.module.min.js') }}" } }</script>
 </head>
 <body>
@@ -16,13 +16,9 @@
 <span data-sc-progress></span>
 <div class="sc-grain" aria-hidden="true"></div>
 
-<!-- Far plane: drafting paper grid, fixed behind everything, drifts slower than the page. -->
 <div class="paper" aria-hidden="true"></div>
-<!-- Mid plane: the three.js assembly. Fixed; only visible where a sheet is transparent. -->
 <canvas id="rig" class="rig" aria-hidden="true"></canvas>
-<!-- No-WebGL fallback: the same assembly as a flat elevation drawing (filled in by rig.js). -->
 <svg id="rig-flat" class="rig-flat" viewBox="-10 -11 20 22" aria-hidden="true" hidden></svg>
-<!-- Labels that follow points in the 3D scene (real text, positioned from projection). -->
 <div class="tags" aria-hidden="true">
   <span class="tag" data-tag="g0">L1 · Regex sieve</span>
   <span class="tag" data-tag="g1">L2 · Semantic field</span>
@@ -32,7 +28,6 @@
   <span class="stamp" data-tag="stamp" hidden></span>
 </div>
 
-<!-- The drawing title block IS the navigation (live surface: app chrome, not a marketing bar). -->
 <nav class="titleblock" aria-label="Drawing sheets">
   <div class="tb-head">
     <a class="tb-name" href="/">RAG Chatbot</a>
@@ -50,7 +45,6 @@
 
 <main>
 
-  <!-- R-1 · CURIOSITY. Pinned hero: the drawing already in a state, your question field. -->
   <section id="assembly" class="sheet sheet--clear" data-sc-act="pin" data-sc-span="1.5">
     <div data-sc-stage class="hero">
       <div class="hero__copy">
@@ -72,7 +66,6 @@
           <p class="qform__status" id="qstatus" role="status" aria-live="polite"></p>
         </form>
       </div>
-      <!-- Near plane: a dimension line that overtakes the assembly as you scroll. -->
       <svg class="dimline" viewBox="0 0 60 600" preserveAspectRatio="none" aria-hidden="true">
         <path d="M30 6 V594 M18 6 H42 M18 594 H42 M30 6 l-5 12 M30 6 l5 12 M30 594 l-5 -12 M30 594 l5 -12" />
       </svg>
@@ -80,7 +73,6 @@
     </div>
   </section>
 
-  <!-- R-2 · UNEASE. Quiet, light print sheet. Authored silence before the peak. -->
   <section id="ledger" class="sheet sheet--print sc-section">
     <div class="sc-wrap ledger" data-sc-in data-sc-stagger="60">
       <p class="sheet-code">Sheet R-2 · Ledger</p>
@@ -99,7 +91,6 @@
     </div>
   </section>
 
-  <!-- R-3 · PEAK. The drop test: your question falls through the three gates. Largest span. -->
   <section id="drop" class="sheet sheet--clear" data-sc-act="pin" data-sc-span="4.2">
     <div data-sc-stage class="drop">
       <aside class="log" aria-labelledby="log-title">
@@ -123,7 +114,6 @@
     </div>
   </section>
 
-  <!-- R-4 · CLARITY. Lateral rail of drawing details, yours stamped in redline. -->
   <section id="details" class="sheet sheet--deep" data-sc-act="pan" data-sc-span="3">
     <div data-sc-stage class="details">
       <div class="rail" data-sc-pan="0.06">
@@ -222,7 +212,6 @@
     </div>
   </section>
 
-  <!-- R-5 · COMPETENCE. The LangGraph wiring draws itself; your path is redlined. -->
   <section id="wiring" class="sheet sheet--clear-deep" data-sc-act="pin" data-sc-span="1.6">
     <div data-sc-stage class="wiring">
       <div class="wiring__copy">
@@ -265,7 +254,6 @@
     </div>
   </section>
 
-  <!-- R-6 · READINESS. The real bot, your question already typed. Resolves and holds. -->
   <section id="ask" class="sheet sheet--print sc-section ask">
     <div class="sc-wrap ask__grid">
       <div class="ask__intro" data-sc-in data-sc-stagger="60">
@@ -297,8 +285,8 @@
 
 </main>
 
-<script src="{{ url_for('static', path='welcome/scrollcraft.js') }}"></script>
+<script src="{{ url_for('static', path='welcome/scrollcraft.js') }}?v={{ static_v('welcome/scrollcraft.js') }}"></script>
 <script>ScrollCraft.mount(document.body);</script>
-<script type="module" src="{{ url_for('static', path='welcome/welcome.js') }}"></script>
+<script type="module" src="{{ url_for('static', path='welcome/welcome.js') }}?v={{ static_v('welcome/welcome.js') }}"></script>
 </body>
 </html>

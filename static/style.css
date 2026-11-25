@@ -1,9 +1,3 @@
-/* ==========================================================================
-   RAG Chatbot · chat app
-   Quiet ink chrome; the colour lives in one place, the router sheet on the
-   right (Prussian blue line work from /welcome, redline for your question).
-   ========================================================================== */
-
 @font-face { font-family: "Archivo"; font-weight: 400; font-display: swap; src: url("fonts/archivo-latin-400-normal.woff2") format("woff2"); }
 @font-face { font-family: "Archivo"; font-weight: 500; font-display: swap; src: url("fonts/archivo-latin-500-normal.woff2") format("woff2"); }
 @font-face { font-family: "Archivo"; font-weight: 600; font-display: swap; src: url("fonts/archivo-latin-600-normal.woff2") format("woff2"); }
@@ -16,7 +10,6 @@
   --line: rgb(17 24 39 / 0.09); --line-strong: rgb(17 24 39 / 0.16);
   --accent: #C2410C; --accent-ink: #ffffff;
   --danger: #dc2626; --ok: #16a34a;
-  /* the drawing sheet stays dark in both themes: it is the one rich surface */
   --sheet: #0D2740; --sheet-ink: #EAF0F6; --sheet-ink-2: #9DB4CA; --sheet-red: #FF6B45;
   --font: "Archivo", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
@@ -44,7 +37,6 @@ code, kbd { font-family: var(--mono); font-size: 12px; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 [hidden] { display: none !important; }
 
-/* --- controls ------------------------------------------------------------ */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line-strong);
@@ -81,10 +73,8 @@ details > summary::-webkit-details-marker { display: none; }
 details > summary .icon { transform: rotate(-90deg); transition: transform 160ms var(--ease); color: var(--muted); }
 details[open] > summary .icon { transform: none; }
 
-/* --- shell --------------------------------------------------------------- */
 .layout { display: grid; grid-template-columns: 264px minmax(0, 1fr) 360px; height: 100vh; height: 100dvh; }
 
-/* --- sidebar ------------------------------------------------------------- */
 .sidebar {
   background: var(--side); border-right: 1px solid var(--line);
   padding: 16px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; min-width: 0;
@@ -143,7 +133,6 @@ details[open] > summary .icon { transform: none; }
 }
 .tour-link:hover { background: var(--raised); color: var(--text); }
 
-/* --- chat column --------------------------------------------------------- */
 .chat { display: flex; flex-direction: column; min-width: 0; height: 100vh; height: 100dvh; }
 .chat-header { display: flex; align-items: center; gap: 8px; height: 56px; padding: 0 16px 0 24px; border-bottom: 1px solid var(--line); flex: none; }
 .chat-title { flex: 1; font-weight: 500; }
@@ -182,7 +171,6 @@ details[open] > summary .icon { transform: none; }
 .content.md th { font-weight: 500; color: var(--text-2); }
 .content.md a { color: var(--accent); }
 
-/* signature: the route stamp. Six slots = the six outlet bins in the drawing */
 .stamp {
   display: inline-flex; align-items: center; gap: 8px; height: 26px; margin: 0 0 10px; padding: 0 8px;
   border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; cursor: pointer;
@@ -213,7 +201,6 @@ details[open] > summary .icon { transform: none; }
 .chip:hover { border-color: var(--accent); color: var(--text); }
 .snippet { margin-top: 4px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* pending turn: your question shows at once, the answer row waits on the router */
 .thinking { display: flex; align-items: center; gap: 10px; font: 13px var(--mono); color: var(--muted); }
 .thinking .slots i { animation: scan 1.2s var(--ease) infinite; }
 .thinking .slots i:nth-child(2) { animation-delay: 80ms; } .thinking .slots i:nth-child(3) { animation-delay: 160ms; }
@@ -222,7 +209,6 @@ details[open] > summary .icon { transform: none; }
 .turn-error { color: var(--danger); font-size: 14px; }
 .turn-note { margin: 8px 0 0; font: 12px var(--mono); color: var(--muted); }
 .thinking + .content:empty { display: none; }
-/* live cursor while the answer streams in */
 .message.streaming .content > :last-child::after,
 .message.streaming .content:not(.md)::after {
   content: ""; display: inline-block; width: 7px; height: 1.05em; margin-left: 2px; vertical-align: -0.15em;
@@ -261,7 +247,63 @@ details[open] > summary .icon { transform: none; }
 .send:disabled { opacity: 0.4; cursor: default; }
 .composer-hint { max-width: 712px; margin: 8px auto 0; font-size: 12px; color: var(--muted); text-align: center; }
 
-/* --- router panel: the drawing sheet ------------------------------------- */
+.composer-box.has-picker { position: relative; flex-wrap: wrap; align-items: center; row-gap: 6px; padding: 10px 8px 8px 16px; }
+.composer-box.has-picker textarea { flex: 1 1 100%; padding: 2px 8px 2px 0; }
+.composer-box.has-picker .send { margin-left: auto; }
+.doc-picker { display: flex; min-width: 0; flex: 0 1 auto; margin-left: -6px; }
+.doc-trigger {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 300px; height: 26px; padding: 0 6px 0 8px;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; cursor: pointer;
+  font: 12px var(--mono); color: var(--text-2);
+  transition: border-color 140ms var(--ease), background-color 140ms var(--ease), color 140ms var(--ease);
+}
+.doc-trigger:hover, .doc-trigger[aria-expanded="true"] { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 6%, transparent); }
+.doc-trigger .icon { flex: none; color: var(--muted); }
+.doc-trigger .icon:last-child { transform: rotate(180deg); transition: transform 160ms var(--ease); }
+.doc-trigger[aria-expanded="true"] .icon:last-child { transform: none; }
+.doc-trigger-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-picker.is-scoped .doc-trigger { border-color: var(--accent); color: var(--text); }
+.doc-picker.is-scoped .doc-trigger .icon:first-child { color: var(--accent); }
+
+.doc-menu {
+  position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 20; width: 320px; max-width: 100%;
+  max-height: min(60vh, 440px); overflow-y: auto; overscroll-behavior: contain; padding: 6px;
+  border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.18); animation: enter 200ms var(--ease) both;
+}
+.doc-menu-title, .doc-group { margin: 0; padding: 6px 8px 4px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.doc-group { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.doc-option {
+  display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 8px; border-radius: 8px; cursor: pointer;
+  font-size: 14px; color: var(--text-2);
+  transition: background-color 140ms var(--ease), color 140ms var(--ease);
+}
+.doc-option:hover { background: var(--raised); color: var(--text); }
+.doc-option:has(input:checked) { color: var(--text); }
+.doc-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.doc-option input {
+  appearance: none; flex: none; display: grid; place-items: center; width: 16px; height: 16px; margin: 0;
+  border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; cursor: pointer; outline: none;
+  transition: background-color 140ms var(--ease), border-color 140ms var(--ease);
+}
+.doc-option:hover input { border-color: var(--muted); }
+.doc-option input:checked { background: var(--accent); border-color: var(--accent); }
+.doc-option input:checked::after {
+  content: ""; width: 4px; height: 8px; margin-top: -2px; transform: rotate(45deg);
+  border: solid var(--accent-ink); border-width: 0 1.5px 1.5px 0;
+}
+.doc-option-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-meta { flex: none; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.doc-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin-top: 8px; }
+.doc-tag {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 22px; padding: 0 6px;
+  border: 1px solid var(--line-strong); border-radius: 6px; font: 12px var(--mono); color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.doc-tag .icon { flex: none; color: var(--muted); }
+.starter-tag { margin-left: 10px; font: 12px var(--mono); color: var(--muted); }
+
 .panel {
   display: flex; flex-direction: column; min-width: 0; height: 100vh; height: 100dvh; overflow-y: auto;
   background: var(--side); border-left: 1px solid var(--line);
@@ -302,14 +344,12 @@ details[open] > summary .icon { transform: none; }
 .legend ol { margin: 8px 0 0; padding-left: 24px; color: var(--text-2); display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .legend b { display: block; font-weight: 500; color: var(--text); }
 
-/* --- PDF overlay ---------------------------------------------------------- */
 .pdf-overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 4vh 4vw; background: rgb(5 8 14 / 0.6); animation: fade 200ms var(--ease) both; }
 .pdf-card { width: 100%; height: 100%; max-width: 1100px; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 16px 48px rgb(0 0 0 / 0.3); animation: enter 260ms var(--ease) both; }
 .pdf-overlay-bar { display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--line); }
 .pdf-title { flex: 1; font: 13px var(--mono); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pdf-card iframe { flex: 1; width: 100%; border: 0; background: #fff; }
 
-/* --- motion --------------------------------------------------------------- */
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } }
 @keyframes fade { from { opacity: 0; } }
 @keyframes caret { 50% { opacity: 0; } }
@@ -319,7 +359,6 @@ details[open] > summary .icon { transform: none; }
   .scroll { scroll-behavior: auto; }
 }
 
-/* --- responsive ------------------------------------------------------------ */
 .only-mobile { display: none; }
 .scrim { display: none; }
 @media (max-width: 1180px) {
@@ -351,7 +390,6 @@ details[open] > summary .icon { transform: none; }
   .intro h1 { font-size: 28px; }
 }
 
-/* searched, but nothing passed the relevance threshold: muted, struck-through slot */
 .stamp.is-empty .slots i.on { background: transparent; outline: 1px solid var(--muted); }
 .stamp-empty { color: var(--muted); font-style: italic; }
 .decision.is-empty .decision-route { color: var(--muted); }

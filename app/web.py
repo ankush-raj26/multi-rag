@@ -21,7 +21,21 @@ from app.storage.json_store import SessionNotFoundError, SessionStore
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.tests["lower_endswith"] = lambda value, suffix: str(value).lower().endswith(suffix)
+DEMO_DOC = "remote_work_policy.md"
 router = APIRouter(include_in_schema=False)
+
+
+def _static_v(path: str) -> int:
+    """A version for a static file's URL (its modified time), so an edited style.css or
+    chat.js is fetched again instead of being served from the browser's cache."""
+    try:
+        return int((TEMPLATES_DIR.parent / "static" / path).stat().st_mtime)
+    except OSError:
+        return 0
+
+
+templates.env.globals["static_v"] = _static_v
 
 
 def _redirect(request: Request, url: str) -> Response:
@@ -38,6 +52,10 @@ def _render_page(request: Request, store: SessionStore, components: Components, 
         except SessionNotFoundError:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found") from None
     settings: Settings = request.app.state.settings
+    documents = sorted(
+        p.name for p in settings.documents_dir.glob("*") if p.suffix.lower() in settings.allowed_upload_suffixes
+    )
+    pickable = _pickable(components, documents)
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -46,12 +64,29 @@ def _render_page(request: Request, store: SessionStore, components: Components, 
             "current": current,
             "missing": components.missing,
             "pdfs": sorted(p.name for p in settings.documents_dir.glob("*.pdf")),
-            # all indexed files: the empty chat builds its starter questions from these
-            "documents": sorted(
-                p.name for p in settings.documents_dir.glob("*") if p.suffix.lower() in settings.allowed_upload_suffixes
-            ),
+            "documents": documents,
+            "pickable": pickable,
+            "demo_doc": DEMO_DOC if DEMO_DOC in pickable else None,
+            "picked": _last_picked(current),
         },
     )
+
+
+def _pickable(components: Components, documents: list[str]) -> list[str]:
+    """Documents a question can be limited to. Without an index to ask, every file on disk."""
+    sources = getattr(components.store, "sources", None)
+    if sources is None:
+        return documents
+    indexed = set(sources())
+    return [d for d in documents if d in indexed]
+
+
+def _last_picked(session: Any) -> list[str]:
+    """The documents picked for this chat's last question: the picker starts there."""
+    for m in reversed(session.messages if session else []):
+        if m.role == "user":
+            return list(m.docs)
+    return []
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -97,12 +132,13 @@ def welcome(request: Request, components: Components = Depends(get_components)) 
 def ui_start(
     request: Request,
     content: str = Form(..., min_length=1, max_length=8000),
+    docs: list[str] = Form(default_factory=list),
     store: SessionStore = Depends(get_store),
     components: Components = Depends(get_components),
 ) -> Response:
     """No-JavaScript path for the landing page's ask form: new chat, first turn, open it."""
     session = store.create()
-    run_chat_turn(store, components.engine, session.id, content)
+    run_chat_turn(store, components.engine, session.id, content, docs)
     return RedirectResponse(f"/sessions/{session.id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -110,7 +146,7 @@ def ui_start(
 def serve_document(name: str, request: Request) -> FileResponse:
     """Serve a document inline so an <iframe ...#page=N> can display a chosen page."""
     settings: Settings = request.app.state.settings
-    safe = Path(name).name  # strip any path parts -> no directory traversal
+    safe = Path(name).name
     path = settings.documents_dir / safe
     if not path.exists() or path.suffix.lower() not in settings.allowed_upload_suffixes:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
@@ -151,11 +187,12 @@ def ui_send_message(
     session_id: str,
     request: Request,
     content: str = Form(..., min_length=1, max_length=8000),
+    docs: list[str] = Form(default_factory=list),
     store: SessionStore = Depends(get_store),
     components: Components = Depends(get_components),
 ) -> HTMLResponse:
     try:
-        user_message, assistant_message = run_chat_turn(store, components.engine, session_id, content)
+        user_message, assistant_message = run_chat_turn(store, components.engine, session_id, content, docs)
     except SessionNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found") from None
     return templates.TemplateResponse(
@@ -168,6 +205,7 @@ def ui_stream_message(
     session_id: str,
     request: Request,
     content: str = Form(..., min_length=1, max_length=8000),
+    docs: list[str] = Form(default_factory=list),
     store: SessionStore = Depends(get_store),
     components: Components = Depends(get_components),
 ) -> StreamingResponse:
@@ -178,7 +216,7 @@ def ui_stream_message(
     event: done   {"html"}                       both saved messages, rendered like the page does
     """
     try:
-        events = stream_chat_turn(store, components.engine, session_id, content)
+        events = stream_chat_turn(store, components.engine, session_id, content, docs)
     except SessionNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found") from None
     partial = templates.get_template("partials/messages.html")
@@ -217,7 +255,7 @@ def _until_disconnect(
                     break
                 out.put(fmt(kind, data))
         finally:
-            events.close()   # after a stop: the turn saves what it has
+            events.close()
             out.put(None)
 
     threading.Thread(target=worker, daemon=True).start()
@@ -225,7 +263,6 @@ def _until_disconnect(
     async def stream() -> AsyncIterator[str]:
         try:
             while (chunk := await anyio.to_thread.run_sync(out.get)) is not None:
-                # uvicorn drops writes to a closed connection silently, so ask explicitly
                 if await request.is_disconnected():
                     break
                 yield chunk

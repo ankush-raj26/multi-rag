@@ -50,7 +50,7 @@ def test_stream_endpoint_sends_events_and_saves_turn(client: TestClient) -> None
 
 
 def test_stream_endpoint_works_with_engines_without_stream(client: TestClient) -> None:
-    sid = client.post("/api/sessions").json()["id"]   # default components: placeholder engine
+    sid = client.post("/api/sessions").json()["id"]
     events = _events(client.post(f"/ui/sessions/{sid}/stream", data={"content": "hi"}).text)
     assert events[-1][0] == "done"
     assert len(client.get(f"/api/sessions/{sid}").json()["messages"]) == 2

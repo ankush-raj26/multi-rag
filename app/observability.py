@@ -13,7 +13,6 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# "1", "true", "yes", "on" (any case) all count as "switched on".
 _TRUEY = {"1", "true", "yes", "on"}
 
 
@@ -28,27 +27,21 @@ def configure_tracing() -> bool:
     OUT: True if tracing is now active, False if it is off or misconfigured.
     Called once at start-up (see app/main.py).
     """
-    # Accept either the new name (LANGSMITH_TRACING) or the legacy one.
     wants_tracing = _is_on("LANGSMITH_TRACING") or _is_on("LANGCHAIN_TRACING_V2")
-    # Accept either key name as well.
     api_key = os.getenv("LANGSMITH_API_KEY") or os.getenv("LANGCHAIN_API_KEY")
 
     if not wants_tracing:
-        return False  # tracing explicitly off — nothing to do
+        return False
 
     if not api_key:
-        # They asked for tracing but gave no key: warn, stay off, do NOT crash.
         logger.warning("LANGSMITH_TRACING is on but no LANGSMITH_API_KEY is set — tracing disabled.")
         return False
 
-    # Set BOTH flag names so every langchain/langgraph version picks it up.
     os.environ["LANGSMITH_TRACING"] = "true"
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
-    os.environ["LANGSMITH_API_KEY"] = api_key      # normalise onto the new name
-    os.environ.setdefault("LANGCHAIN_API_KEY", api_key)  # and keep the legacy one
+    os.environ["LANGSMITH_API_KEY"] = api_key
+    os.environ.setdefault("LANGCHAIN_API_KEY", api_key)
 
-    # Make sure runs land in a named project (default if the user gave none),
-    # so you can actually find them in the LangSmith UI.
     project = os.getenv("LANGSMITH_PROJECT") or "rag-chatbot"
     os.environ["LANGSMITH_PROJECT"] = project
     os.environ.setdefault("LANGCHAIN_PROJECT", project)

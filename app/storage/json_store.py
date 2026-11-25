@@ -26,9 +26,7 @@ class SessionStore:
         self.directory.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
 
-    # ------------------------------------------------------------------ helpers
     def _path(self, session_id: str) -> Path:
-        # Only accept our own id format, so a crafted id can never escape the folder.
         if not _ID_PATTERN.match(session_id):
             raise SessionNotFoundError(session_id)
         return self.directory / f"{session_id}.json"
@@ -38,9 +36,8 @@ class SessionStore:
         fd, tmp = tempfile.mkstemp(dir=self.directory, suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(session.model_dump(), fh, indent=2, ensure_ascii=False)
-        os.replace(tmp, path)  # atomic: readers never see a half-written file
+        os.replace(tmp, path)
 
-    # ------------------------------------------------------------------ API
     def list(self) -> list[SessionSummary]:
         summaries = []
         for path in self.directory.glob("*.json"):

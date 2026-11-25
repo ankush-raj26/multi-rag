@@ -1,11 +1,3 @@
-/* ==========================================================================
-   Chat page behaviour (plain script, runs after htmx)
-   - composer: auto-grow, Enter sends, your question shows at once
-   - the answer streams in (Server-Sent Events from /ui/sessions/{id}/stream);
-     the router panel animates the route as soon as the router decides
-   - markdown for answers, inline rename, drag-and-drop upload, PDF overlay
-   The 3D drawing lives in router3d.js and listens for "router:*" events.
-   ========================================================================== */
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -13,20 +5,17 @@
   const scroller = $("#scroll");
   const toBottom = () => { if (scroller) scroller.scrollTop = scroller.scrollHeight; };
 
-  // ---------------------------------------------------------------- markdown
   function renderMarkdown(root = document) {
-    if (!window.marked || !window.DOMPurify) return;   // CDN blocked: plain text stays readable
+    if (!window.marked || !window.DOMPurify) return;
     $$(".content[data-md]:not(.md)", root).forEach((el) => {
       el.innerHTML = DOMPurify.sanitize(marked.parse(el.textContent, { breaks: true, gfm: true }));
       el.classList.add("md");
     });
   }
 
-  // ---------------------------------------------------------------- router events
   function decisionOf(article) {
     if (!article || !article.dataset.route) return null;
     const { route, layer, reason } = article.dataset;
-    // retrieved: passages that passed the relevance threshold (absent = no search was run)
     const retrieved = article.dataset.retrieved === undefined ? null : Number(article.dataset.retrieved);
     return { route, layer, reason, retrieved };
   }
@@ -39,7 +28,41 @@
   }
   const lastAnswer = () => $$("#messages .message.assistant[data-route]").pop();
 
-  // ---------------------------------------------------------------- composer
+  const picker = $("#doc-picker");
+  const docMenu = $("#doc-menu");
+  const docTrigger = $("#doc-trigger");
+  const docBoxes = () => (picker ? $$('input[name="docs"]', picker) : []);
+  const pickedDocs = () => docBoxes().filter((b) => b.checked).map((b) => b.value);
+
+  function syncPicker() {
+    if (!picker) return;
+    const picked = pickedDocs();
+    $("[data-doc-all]", picker).checked = picked.length === 0;
+    $(".doc-trigger-text", picker).textContent =
+      picked.length === 0 ? "All documents" : picked.length === 1 ? picked[0] : picked.length + " documents";
+    picker.classList.toggle("is-scoped", picked.length > 0);
+    docTrigger.title = picked.length ? picked.join(", ") : "All documents";
+  }
+  function setPicked(names) {
+    docBoxes().forEach((b) => (b.checked = names.includes(b.value)));
+    syncPicker();
+  }
+  function toggleDocMenu(force) {
+    if (!picker) return;
+    const open = force ?? docMenu.hidden;
+    docMenu.hidden = !open;
+    docTrigger.setAttribute("aria-expanded", String(open));
+  }
+  if (picker) {
+    docTrigger.addEventListener("click", () => toggleDocMenu());
+    picker.addEventListener("change", (e) => {
+      if (e.target.matches("[data-doc-all]")) setPicked([]);
+      else syncPicker();
+    });
+    document.addEventListener("click", (e) => { if (!docMenu.hidden && !picker.contains(e.target)) toggleDocMenu(false); });
+    syncPicker();
+  }
+
   const composer = $("#composer");
   const textarea = composer?.querySelector("textarea");
   const send = composer?.querySelector(".send:not(.stop)");
@@ -56,22 +79,23 @@
     send.disabled = !textarea.value.trim() || !!pending;
   }
 
-  function ask(text) {
+  function ask(text, docs) {
     if (!composer || pending) return;
+    if (docs) setPicked(docs);
     textarea.value = text;
     grow();
     composer.requestSubmit();
   }
 
   const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const docTagsHtml = (names) => names.length ? '<div class="doc-tags">' +
+    names.map((n) => '<span class="doc-tag">' + esc(n) + "</span>").join("") + "</div>" : "";
   const thinkingRow = (label) => '<div class="thinking"><span class="slots" aria-hidden="true">' + "<i></i>".repeat(6) +
     "</span><span>" + esc(label) + "</span></div>";
   const stampHtml = (d) => '<button type="button" class="stamp is-playing" title="' + esc(d.reason || "") + '"><span class="slots" aria-hidden="true">' +
     ROUTES.map((r) => (r === d.route ? '<i class="on"></i>' : "<i></i>")).join("") + '</span><span class="stamp-route">' +
     esc(ROUTE_LABEL[d.route] || d.route) + '</span><span class="stamp-layer">via ' + esc(d.layer) + "</span></button>";
 
-  // follow the answer down while it grows, but stop once your question reaches the top,
-  // so a long answer reads from its start (and never fight a reader who scrolled up)
   function follow() {
     if (!pending || pending.detached) return;
     const top = pending.q.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 16;
@@ -79,7 +103,6 @@
     scroller.scrollTop += Math.max(0, Math.min(room, top));
   }
 
-  // render the streamed text as markdown at most once per frame
   function paint() {
     if (!pending || pending.painted) return;
     pending.painted = true;
@@ -101,7 +124,7 @@
       p.a.insertAdjacentHTML("afterbegin", stampHtml(data));
       p.a.querySelector(".thinking span:last-child").textContent = WORKING[data.route] || "Searching with " + ROUTE_LABEL[data.route];
       $$(".stamp.is-playing").forEach((s) => s !== p.a.querySelector(".stamp") && s.classList.remove("is-playing"));
-      emit("router:play", data);   // the packet drops while the answer is being written
+      emit("router:play", data);
     } else if (kind === "token") {
       if (!p.text) { p.a.querySelector(".thinking")?.remove(); p.a.classList.add("streaming"); }
       p.text += data.text;
@@ -111,15 +134,13 @@
       const tpl = document.createElement("template");
       tpl.innerHTML = data.html;
       const fresh = [...tpl.content.querySelectorAll("article")];
-      fresh.forEach((n) => (n.style.animation = "none"));   // already on screen: no second entrance
+      fresh.forEach((n) => (n.style.animation = "none"));
       p.q.replaceWith(fresh[0]);
       p.a.replaceWith(fresh[1]);
       renderMarkdown($("#messages"));
       const a = fresh[1];
-      // the deep agent can fall back to hybrid: replay only if the final route changed
       if (a.dataset.route && (!p.route || p.route.route !== a.dataset.route)) replay(a);
       else a.querySelector(".stamp")?.classList.add("is-playing");
-      // the search result is only known now: tell the router panel if nothing was relevant
       const d = decisionOf(a);
       if (d) emit("router:outcome", d);
       if (!a.dataset.route) emit("router:idle");
@@ -129,10 +150,12 @@
   async function submitTurn() {
     const text = textarea.value.trim();
     if (!text || pending) return;
+    const docs = pickedDocs();
+    toggleDocMenu(false);
     $("#intro")?.remove();
     const q = document.createElement("article");
     q.className = "message user";
-    q.innerHTML = '<div class="content"></div>';
+    q.innerHTML = '<div class="content"></div>' + docTagsHtml(docs);
     q.querySelector(".content").textContent = text;
     const a = document.createElement("article");
     a.className = "message assistant";
@@ -148,12 +171,13 @@
 
     let failed = false;
     try {
+      const body = new URLSearchParams({ content: text });
+      docs.forEach((d) => body.append("docs", d));
       const res = await fetch(composer.dataset.stream, {
-        method: "POST", body: new URLSearchParams({ content: text }), signal: ctrl.signal,
+        method: "POST", body, signal: ctrl.signal,
         headers: { Accept: "text/event-stream" },
       });
       if (!res.ok || !res.body) throw new Error(String(res.status));
-      // Server-Sent Events over fetch: blocks separated by a blank line, "event:" + "data:" lines
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
       let buf = "";
       for (;;) {
@@ -201,7 +225,6 @@
     });
     composer.addEventListener("submit", (e) => { e.preventDefault(); submitTurn(); });
     stop.addEventListener("click", () => pending?.ctrl.abort());
-    // a reader who scrolls up while the answer streams keeps their place
     scroller.addEventListener("wheel", (e) => { if (pending && e.deltaY < 0) pending.detached = true; }, { passive: true });
     scroller.addEventListener("touchmove", () => { if (pending) pending.detached = true; }, { passive: true });
     grow();
@@ -212,7 +235,6 @@
     if (meta) meta.textContent = $$("#messages .message").length;
   }
 
-  // ---------------------------------------------------------------- clicks
   document.addEventListener("click", (e) => {
     const t = e.target;
     const stamp = t.closest("[data-replay]");
@@ -222,7 +244,7 @@
       return;
     }
     const starter = t.closest("[data-ask]");
-    if (starter) return ask(starter.dataset.ask);
+    if (starter) return ask(starter.dataset.ask, starter.dataset.docs ? starter.dataset.docs.split(",") : undefined);
     const pdf = t.closest("[data-pdf]");
     if (pdf) return viewPdf(pdf.dataset.pdf, parseInt(pdf.dataset.page, 10) || 1);
     if (t.closest("[data-close-pdf]") || t.id === "pdf-overlay") return closePdf();
@@ -244,7 +266,6 @@
     scrim.hidden = !open;
   }
 
-  // ---------------------------------------------------------------- rename
   const rename = $(".rename");
   if (rename) {
     const input = rename.querySelector("input");
@@ -259,7 +280,6 @@
     });
   }
 
-  // ---------------------------------------------------------------- upload
   const drop = $("#dropzone");
   if (drop) {
     const file = drop.querySelector("input[type=file]");
@@ -274,7 +294,6 @@
     drop.addEventListener("htmx:afterRequest", () => drop.reset());
   }
 
-  // ---------------------------------------------------------------- PDF overlay
   function viewPdf(name, page) {
     page = page || 1;
     const url = "/files/" + encodeURIComponent(name) + "#page=" + page;
@@ -287,7 +306,7 @@
   }
   function closePdf() {
     $("#pdf-overlay").hidden = true;
-    $("#pdf-frame").src = "about:blank";   // stop rendering
+    $("#pdf-frame").src = "about:blank";
   }
   window.viewPdf = viewPdf;
   $("#viewer-form")?.addEventListener("submit", (e) => {
@@ -297,13 +316,12 @@
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (!$("#pdf-overlay").hidden) return closePdf();
+    if (docMenu && !docMenu.hidden) { toggleDocMenu(false); return docTrigger.focus(); }
     togglePanel(false); toggleSidebar(false);
   });
 
-  // ---------------------------------------------------------------- start
   renderMarkdown();
   toBottom();
-  // the router module may load after us; it asks for the latest answer when ready
   document.addEventListener("router:ready", () => {
     const a = lastAnswer();
     if (a) replay(a);

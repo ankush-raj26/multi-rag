@@ -1,15 +1,3 @@
-/* ==========================================================================
-   Router panel · the 3-layer router drawn as line work (three.js)
-   ----------------------------------------------------------------------------
-   Same assembly as /welcome, sized for a side panel: three gate plates
-   (regex, semantic, LLM picker) over six outlet bins. chat.js sends events:
-     router:thinking  the packet waits above the gates while the bot works
-     router:play      {route, layer, reason} the packet drops through the gate
-                      that REALLY decided and rides a rail into its bin
-     router:idle      back to waiting
-   Drag the sheet to turn the drawing. Renders only while something moves.
-   ========================================================================== */
-
 import * as THREE from "three";
 
 const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -51,8 +39,7 @@ const canvas = $("#router-canvas");
 const tagsEl = $("#sheet-tags");
 const statusEl = $("#router-status");
 
-// ---------------------------------------------------------------- the decision card (works without WebGL)
-const emptyResult = (d) => d && d.route !== "none" && d.retrieved === 0;   // searched, nothing relevant
+const emptyResult = (d) => d && d.route !== "none" && d.retrieved === 0;
 function showDecision(d) {
   $("#decision").hidden = false;
   const label = ROUTE_LABEL[d.route] || d.route;
@@ -69,7 +56,6 @@ function setStatus(text, live = false) {
   statusEl.classList.toggle("is-live", live);
 }
 
-// ---------------------------------------------------------------- packet path
 function buildFrames(d) {
   const gate = d.layer in LAYER_GATE ? LAYER_GATE[d.layer] : -1;
   const binX = BIN_X[Math.max(0, ROUTES.indexOf(d.route))];
@@ -100,7 +86,6 @@ function packetAt(f, p) {
   return { x: last[1], y: last[2] };
 }
 
-// ---------------------------------------------------------------- scene
 function buildRig() {
   let renderer;
   try {
@@ -140,7 +125,6 @@ function buildRig() {
       group.add(seg(pts, detail));
     }
     if (i === 1) {
-      // example-question clusters, one per route the semantic layer can pick (app/chat/router.py)
       extra.clusters = {};
       ["none", "dense", "bm25", "hybrid", "agentic"].forEach((route, c) => {
         const a0 = deg(30 + c * 72), pos = [];
@@ -207,7 +191,6 @@ function buildRig() {
 const rig = buildRig();
 if (!rig) sheet.classList.add("no-gl");
 
-// ---------------------------------------------------------------- labels riding the scene
 const tags = [];
 if (rig) {
   GATE_TAG.forEach((text, i) => tags.push({ el: tag(text, "gate"), at: new THREE.Vector3(3.6, GATE_Y[i], 3.6), kind: "gate", i }));
@@ -221,13 +204,12 @@ function tag(text, kind) {
   return el;
 }
 
-// ---------------------------------------------------------------- state
 const state = {
-  mode: "idle",          // idle | thinking | playing | done
+  mode: "idle",
   decision: null,
   frames: [],
   t0: 0,
-  az: deg(34), el: deg(18),   // camera orbit (drag changes az/el)
+  az: deg(34), el: deg(18),
   dragging: null,
 };
 
@@ -242,7 +224,6 @@ function gateStatus(p) {
 }
 const landedAt = () => (state.frames.length ? state.frames[state.frames.length - 2][0] : 1);
 
-// ---------------------------------------------------------------- drawing one frame
 function draw(now) {
   const { gates, bins, packet, camera, renderer } = rig;
   let p = 0, pos = { x: 0, y: TOP_Y };
@@ -256,11 +237,9 @@ function draw(now) {
   }
   const thinking = state.mode === "thinking";
   const statuses = state.decision && !thinking && state.mode !== "idle" ? gateStatus(p) : ["waiting", "waiting", "waiting"];
-  // an empty search lands in the bin but the bin stays unlit: nothing came out of it
   const landed = state.decision && !thinking && state.mode !== "idle" && p >= landedAt() && !emptyResult(state.decision);
   const binIdx = state.decision ? ROUTES.indexOf(state.decision.route) : -1;
 
-  // packet: waits and turns while thinking, then follows its path
   packet.position.set(pos.x, pos.y, 0);
   packet.rotation.y = thinking ? now * 0.0025 : lerp(0, Math.PI * 2, p);
   packet.scale.setScalar(thinking ? 1 + Math.sin(now * 0.006) * 0.08 : 1);
@@ -278,7 +257,6 @@ function draw(now) {
     tags[i] && tags[i].el.classList.toggle("is-hot", caught);
   });
 
-  // semantic layer: a redline to the cluster of examples that matched
   const sem = gates[1];
   const semCaught = statuses[1] === "caught";
   Object.entries(sem.clusters).forEach(([route, c]) => {
@@ -292,7 +270,6 @@ function draw(now) {
     sem.link.geometry.setFromPoints([new THREE.Vector3(pos.x, pos.y, 0), target.at]);
   }
 
-  // LLM picker: the needle swings to the chosen route
   const llm = gates[2];
   const llmCaught = statuses[2] === "caught";
   const needleTo = binIdx >= 0 ? deg(-(-150 + binIdx * 60)) : 0;
@@ -307,7 +284,6 @@ function draw(now) {
     tags[3 + i] && tags[3 + i].el.classList.toggle("is-hot", hit);
   });
 
-  // camera: fixed orbit, nudged by drag; leans toward the action while playing
   const w = sheet.clientWidth, h = sheet.clientHeight;
   const tanH = Math.tan(deg(15));
   const dist = Math.max(10.4 / tanH, 9 / (tanH * (w / h))) * 0.98;
@@ -318,7 +294,6 @@ function draw(now) {
   camera.updateMatrixWorld();
   renderer.render(rig.scene, camera);
 
-  // labels follow their anchors
   const v = new THREE.Vector3();
   tags.forEach((t) => {
     v.copy(t.at).project(camera);
@@ -328,7 +303,6 @@ function draw(now) {
   return state.mode === "thinking" || state.mode === "playing" || !!state.dragging;
 }
 
-// render loop that sleeps when nothing moves
 let raf = 0;
 function tick(now) {
   raf = 0;
@@ -350,7 +324,6 @@ function resize() {
 }
 new ResizeObserver(resize).observe(sheet);
 
-// ---------------------------------------------------------------- drag to turn
 if (rig) {
   sheet.addEventListener("pointerdown", (e) => {
     state.dragging = { x: e.clientX, y: e.clientY, az: state.az, el: state.el };
@@ -369,7 +342,6 @@ if (rig) {
   sheet.addEventListener("pointercancel", end);
 }
 
-// ---------------------------------------------------------------- events from chat.js
 document.addEventListener("router:thinking", () => {
   state.mode = "thinking";
   setStatus("Routing your question", true);
@@ -396,7 +368,6 @@ document.addEventListener("router:play", (e) => {
   }
   wake();
 });
-// the answer finished: now we know whether the search found anything relevant
 document.addEventListener("router:outcome", (e) => {
   const d = e.detail;
   if (!state.decision || state.decision.route !== d.route) return;

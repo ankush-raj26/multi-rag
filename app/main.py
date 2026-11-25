@@ -25,7 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application = FastAPI(title="RAG Chatbot (training scaffold)")
     application.state.settings = settings
     application.state.session_store = SessionStore(settings.sessions_dir)
-    application.state.components = None  # built lazily by app.deps.get_components
+    application.state.components = None
     application.state.tracing_enabled = configure_tracing()
 
     application.include_router(sessions.router)

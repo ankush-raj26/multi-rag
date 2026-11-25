@@ -27,6 +27,7 @@ import math
 import os
 import re
 import tempfile
+from collections.abc import Collection
 from pathlib import Path
 from typing import Protocol
 
@@ -63,29 +64,24 @@ class PersistentVectorStore:
     def __init__(self, persist_dir: str | Path) -> None:
         self.dir = Path(persist_dir)
         self.dir.mkdir(parents=True, exist_ok=True)
-        self.path = self.dir / "store.json"          # the one file that holds everything
-        # id -> record; a record is the Chunk fields plus its "vector".
+        self.path = self.dir / "store.json"
         self._records: dict[str, dict] = {}
-        self._bm25 = None                            # lazily (re)built BM25 index
-        self._bm25_ids: list[str] = []               # row order of the BM25 index
-        self._load()                                 # read any existing data on open
+        self._bm25 = None
+        self._bm25_ids: list[str] = []
+        self._load()
 
-    # ----- persistence ----------------------------------------------------
     def _load(self) -> None:
         if self.path.exists():
             data = json.loads(self.path.read_text(encoding="utf-8"))
             self._records = {r["id"]: r for r in data.get("records", [])}
 
     def _save(self) -> None:
-        # Write to a temp file then atomically replace, so a crash never leaves a
-        # half-written store (same trick the session storage uses).
         payload = {"records": list(self._records.values())}
         fd, tmp = tempfile.mkstemp(dir=self.dir, suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, ensure_ascii=False)
         os.replace(tmp, self.path)
 
-    # ----- helpers --------------------------------------------------------
     def _to_chunk(self, rec: dict) -> Chunk:
         """Rebuild a full Chunk object from a stored record (vector left out)."""
         return Chunk(
@@ -93,14 +89,13 @@ class PersistentVectorStore:
             source=rec["source"], position=rec["position"], metadata=rec.get("metadata", {}),
         )
 
-    # ----- write API ------------------------------------------------------
     def add(self, chunks: list[Chunk], embeddings: list[list[float]]) -> None:
         """Insert or REPLACE chunks keyed by chunk.id (upsert -> no duplicates)."""
         for chunk, vector in zip(chunks, embeddings, strict=False):
-            rec = chunk.model_dump()        # all Chunk fields as a dict
-            rec["vector"] = list(vector)    # store its dense vector alongside
-            self._records[chunk.id] = rec   # same id overwrites -> no duplicate
-        self._bm25 = None                   # corpus changed -> BM25 must rebuild
+            rec = chunk.model_dump()
+            rec["vector"] = list(vector)
+            self._records[chunk.id] = rec
+        self._bm25 = None
         self._save()
 
     def delete_document(self, doc_id: str) -> int:
@@ -116,42 +111,56 @@ class PersistentVectorStore:
     def count(self) -> int:
         return len(self._records)
 
+    def sources(self) -> list[str]:
+        """Every indexed file name (chunk.source), sorted: what the document picker offers."""
+        return sorted({r["source"] for r in self._records.values()})
+
     def vectors_for(self, chunk_ids: list[str]) -> dict[str, list[float]]:
         """Stored dense vectors for these chunk ids (used to score relevance)."""
         return {cid: self._records[cid]["vector"] for cid in chunk_ids if cid in self._records}
 
-    # ----- dense search (the M5 contract) --------------------------------
-    def search(self, query_embedding: list[float], k: int) -> list[RetrievedChunk]:
-        """Return up to k chunks most similar to the query vector, best first."""
-        if not self._records:               # empty store -> []
+    def search(
+        self, query_embedding: list[float], k: int, sources: Collection[str] | None = None
+    ) -> list[RetrievedChunk]:
+        """Return up to k chunks most similar to the query vector, best first.
+
+        `sources` (optional) limits the search to chunks of those files (the document picker).
+        """
+        if not self._records:
             return []
         scored = [
             RetrievedChunk(chunk=self._to_chunk(r), score=_cosine(query_embedding, r["vector"]))
             for r in self._records.values()
+            if not sources or r["source"] in sources
         ]
-        scored.sort(key=lambda h: h.score, reverse=True)  # highest cosine first
+        scored.sort(key=lambda h: h.score, reverse=True)
         return scored[:k]
 
-    # ----- BM25 keyword search (used by hybrid retrieval, M7) -------------
     def _ensure_bm25(self) -> None:
         """Build the BM25 index over current chunk texts if it is stale."""
         if self._bm25 is not None:
             return
         from rank_bm25 import BM25Okapi
 
-        self._bm25_ids = list(self._records.keys())             # fix a row order
+        self._bm25_ids = list(self._records.keys())
         corpus = [_tokenize(self._records[i]["text"]) for i in self._bm25_ids]
         self._bm25 = BM25Okapi(corpus) if corpus else None
 
-    def search_bm25(self, query: str, k: int) -> list[RetrievedChunk]:
-        """Return up to k chunks ranked by BM25 keyword overlap with the query text."""
+    def search_bm25(self, query: str, k: int, sources: Collection[str] | None = None) -> list[RetrievedChunk]:
+        """Return up to k chunks ranked by BM25 keyword overlap with the query text.
+
+        With `sources`, only chunks of those files are ranked (scores still use the whole corpus).
+        """
         if not self._records:
             return []
         self._ensure_bm25()
         if self._bm25 is None:
             return []
-        scores = self._bm25.get_scores(_tokenize(query))        # one score per chunk
-        ranked = sorted(zip(self._bm25_ids, scores, strict=False), key=lambda p: p[1], reverse=True)
+        scores = self._bm25.get_scores(_tokenize(query))
+        pairs = zip(self._bm25_ids, scores, strict=False)
+        if sources:
+            pairs = ((cid, sc) for cid, sc in pairs if self._records[cid]["source"] in sources)
+        ranked = sorted(pairs, key=lambda p: p[1], reverse=True)
         hits = [
             RetrievedChunk(chunk=self._to_chunk(self._records[cid]), score=float(score))
             for cid, score in ranked[:k]

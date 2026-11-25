@@ -1,9 +1,5 @@
-# Production image for the RAG chatbot (FastAPI serves BOTH the pages and the API: one URL, no CORS).
-# Keys are NOT baked in. Set them as secrets on the host:
-#   GROQ_API_KEY, GOOGLE_API_KEY, LANGSMITH_API_KEY
 FROM python:3.12-slim
 
-# Non-secret configuration (same values as .env). Any of these can be overridden on the host.
 ENV PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     FASTEMBED_CACHE_PATH=/opt/fastembed \
@@ -18,20 +14,15 @@ ENV PYTHONUNBUFFERED=1 \
 RUN pip install --no-cache-dir uv
 WORKDIR /app
 
-# 1) dependencies first (cached between builds), exactly as locked in uv.lock
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-# 2) the app
 COPY . .
 
-# 3) download the embedding model at BUILD time so start-up doesn't wait for it
 RUN uv run --no-sync python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5')"
 
-# run as a normal user (Hugging Face Spaces requires uid 1000)
 RUN useradd -m -u 1000 user && chown -R user /app /opt/fastembed
 USER user
 
 EXPOSE 7860
-# index data/documents, then serve. --proxy-headers so links stay https behind the host's proxy.
 CMD ["sh", "-c", "uv run --no-sync python -m app.ingest && exec uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

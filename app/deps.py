@@ -45,7 +45,7 @@ def _try(name: str, factory: Callable[..., T], missing: dict[str, str], **kwargs
         return factory(**kwargs)
     except NotImplementedError as exc:
         missing[name] = str(exc)
-    except Exception as exc:  # a broken module must not take the whole app down
+    except Exception as exc:
         logger.exception("Could not build %s", name)
         missing[name] = f"{type(exc).__name__}: {exc}"
     return None

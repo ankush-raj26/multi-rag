@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/sessions", tags=["chat"])
 
 class SendMessage(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
+    docs: list[str] = Field(default_factory=list, max_length=50)
 
 
 class ChatTurn(BaseModel):
@@ -30,7 +31,9 @@ def send_message(
     components: Components = Depends(get_components),
 ) -> ChatTurn:
     try:
-        user_message, assistant_message = run_chat_turn(store, components.engine, session_id, body.content)
+        user_message, assistant_message = run_chat_turn(
+            store, components.engine, session_id, body.content, body.docs
+        )
     except SessionNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found") from None
     return ChatTurn(user_message=user_message, assistant_message=assistant_message)

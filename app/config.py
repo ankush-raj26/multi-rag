@@ -15,7 +15,6 @@ from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# Values already set in the real environment win over `.env`.
 load_dotenv(PROJECT_ROOT / ".env", override=False)
 
 
@@ -40,8 +39,8 @@ class Settings:
     chunk_overlap: int = 100
     top_k: int = 4
     retrieval_mode: str = "hybrid"
-    retrieval_min_score: float | None = None  # None -> the embedder's own relevance_floor
-    retrieval_min_top_score: float | None = None  # None -> the embedder's own relevance_gate
+    retrieval_min_score: float | None = None
+    retrieval_min_top_score: float | None = None
     router_llm_picker: bool = True
     llm_provider: str = "anthropic"
     llm_model: str = ""

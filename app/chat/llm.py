@@ -20,9 +20,6 @@ from langchain_core.language_models import BaseChatModel
 
 from app.config import get_settings
 
-# Sensible default model per provider, used only when LLM_MODEL is left blank.
-# Checked Nov 2026: Groq shut down llama-3.3-70b-versatile (16 Aug 2026) and Google shut
-# down gemini-2.0-flash (1 Jun 2026). `scripts/check_setup.py` picks a live model for your key.
 _DEFAULT_MODEL = {
     "groq": "openai/gpt-oss-120b",
     "google": "gemini-3.8-flash",
@@ -37,33 +34,28 @@ def get_llm() -> BaseChatModel:
 
     OUT: a BaseChatModel that supports `.invoke(messages)` and `.bind_tools(tools)`.
     """
-    settings = get_settings()                      # read provider/model from .env (cached)
-    provider = settings.llm_provider.strip().lower()  # e.g. "groq"
-    model = settings.llm_model.strip() or _DEFAULT_MODEL.get(provider, "")  # fall back if blank
+    settings = get_settings()
+    provider = settings.llm_provider.strip().lower()
+    model = settings.llm_model.strip() or _DEFAULT_MODEL.get(provider, "")
 
-    # temperature=0 -> the model is as deterministic as possible, so demo answers
-    # (and the trainer's evaluation) are repeatable rather than changing each run.
     if provider == "groq":
-        # Imported lazily so a missing optional package only matters if you use it.
-        from langchain_groq import ChatGroq  # reads GROQ_API_KEY from the environment
+        from langchain_groq import ChatGroq
 
-        # timeout + bounded retries: a slow provider fails fast instead of freezing a chat turn
         return ChatGroq(model=model, temperature=0, timeout=60, max_retries=2)
 
     if provider in ("google", "gemini"):
-        from langchain_google_genai import ChatGoogleGenerativeAI  # reads GOOGLE_API_KEY
+        from langchain_google_genai import ChatGoogleGenerativeAI
 
         return ChatGoogleGenerativeAI(model=model, temperature=0, timeout=60, max_retries=2)
 
     if provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic  # reads ANTHROPIC_API_KEY
+        from langchain_anthropic import ChatAnthropic
 
         return ChatAnthropic(model=model, temperature=0)  # type: ignore[call-arg]
 
     if provider == "openai":
-        from langchain_openai import ChatOpenAI  # reads OPENAI_API_KEY
+        from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(model=model, temperature=0)
 
-    # Any other value in LLM_PROVIDER is a configuration mistake — fail loudly.
     raise ValueError(f"Unknown LLM_PROVIDER: {provider!r} (use groq, google, anthropic or openai)")

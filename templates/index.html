@@ -5,8 +5,8 @@
 <script type="importmap">{ "imports": { "three": "{{ url_for('static', path='vendor/three.module.min.js') }}" } }</script>
 <script src="https://cdn.jsdelivr.net/npm/marked@14.1.4/marked.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.3/dist/purify.min.js" defer></script>
-<script src="{{ url_for('static', path='chat/chat.js') }}" defer></script>
-<script type="module" src="{{ url_for('static', path='chat/router3d.js') }}"></script>
+<script src="{{ url_for('static', path='chat/chat.js') }}?v={{ static_v('chat/chat.js') }}" defer></script>
+<script type="module" src="{{ url_for('static', path='chat/router3d.js') }}?v={{ static_v('chat/router3d.js') }}"></script>
 {% endblock %}
 {% block body %}
 {% macro doc_name(file) %}{{ file.rsplit(".", 1)[0].replace("_", " ").replace("-", " ") }}{% endmacro %}
@@ -49,7 +49,6 @@
       </form>
       <div id="upload-status" class="upload-status" aria-live="polite"></div>
 
-      {# ---- PDF page viewer (page-index RAG demo) ---- #}
       <details class="viewer">
         <summary>{{ icon("chevron", 14) }}Open a PDF page</summary>
         {% if pdfs %}
@@ -106,6 +105,7 @@
           {% if current %}
           {% set texts = [] %}{% for d in documents if not d.lower().endswith('.pdf') %}{% set _ = texts.append(d) %}{% endfor %}
           <div class="starters">
+            {% if demo_doc %}<button type="button" class="starter" data-docs="{{ demo_doc }}" data-ask="How many days a week can I work remotely, and is there a home office stipend?">How many remote days do I get?<span class="starter-tag">demo · {{ demo_doc }}</span></button>{% endif %}
             {% if texts %}<button type="button" class="starter" data-ask="Summarize the {{ doc_name(texts[0]) }}">Summarize the {{ doc_name(texts[0]) }}</button>{% endif %}
             {% if pdfs %}<button type="button" class="starter" data-ask="What is on page 2 of {{ pdfs[0] }}?">What is on page 2 of {{ pdfs[0] }}?</button>{% endif %}
             {% if texts|length > 1 %}<button type="button" class="starter" data-ask="Compare the {{ doc_name(texts[0]) }} and the {{ doc_name(texts[1]) }}">Compare the {{ doc_name(texts[0]) }} and the {{ doc_name(texts[1]) }}</button>{% endif %}
@@ -125,8 +125,33 @@
 
     {% if current %}
     <form class="composer" id="composer" data-stream="/ui/sessions/{{ current.id }}/stream">
-      <div class="composer-box">
+      <div class="composer-box{% if pickable %} has-picker{% endif %}">
         <textarea name="content" rows="1" placeholder="Ask a question" required maxlength="8000" aria-label="Message"></textarea>
+        {% if pickable %}
+        {% set pdf_docs = pickable|select("lower_endswith", ".pdf")|list %}
+        <div class="doc-picker" id="doc-picker">
+          <button type="button" class="doc-trigger" id="doc-trigger" aria-haspopup="true" aria-expanded="false"
+                  aria-controls="doc-menu" aria-label="Documents to answer from">
+            {{ icon("file", 14) }}<span class="doc-trigger-text">All documents</span>{{ icon("chevron", 14) }}
+          </button>
+          <div class="doc-menu" id="doc-menu" role="group" aria-label="Documents to answer from" hidden>
+            <p class="doc-menu-title">Answer from</p>
+            <label class="doc-option">
+              <input type="checkbox" data-doc-all {% if not picked %}checked{% endif %}>
+              <span class="doc-option-name">All documents</span><span class="doc-meta">{{ pickable|length }}</span>
+            </label>
+            {% for group, names in [("PDF", pdf_docs), ("Markdown and text", pickable|reject("in", pdf_docs)|list)] if names %}
+            <p class="doc-group">{{ group }}</p>
+            {% for name in names %}
+            <label class="doc-option" title="{{ name }}">
+              <input type="checkbox" name="docs" value="{{ name }}" {% if name in picked %}checked{% endif %}>
+              <span class="doc-option-name">{{ name }}</span>{% if name == demo_doc %}<span class="doc-meta">demo</span>{% endif %}
+            </label>
+            {% endfor %}
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
         <button class="send" type="submit" aria-label="Send">{{ icon("send", 18) }}</button>
         <button class="send stop" type="button" aria-label="Stop" title="Stop" hidden>{{ icon("stop", 16) }}</button>
       </div>
@@ -135,7 +160,6 @@
     {% endif %}
   </main>
 
-  {# ---- The router, drawn: replays the route each answer took ---- #}
   <aside class="panel" id="panel" aria-label="Router">
     <header class="panel-head">
       <span class="panel-title">Router</span>
@@ -166,7 +190,6 @@
   </aside>
 </div>
 
-{# ---- PDF overlay: opened by the viewer controls and by the "Page N" buttons ---- #}
 <div id="pdf-overlay" class="pdf-overlay" hidden>
   <div class="pdf-card" role="dialog" aria-modal="true" aria-labelledby="pdf-overlay-title">
     <div class="pdf-overlay-bar">

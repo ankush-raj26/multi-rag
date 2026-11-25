@@ -20,12 +20,33 @@ logger = logging.getLogger(__name__)
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
-def run_chat_turn(store: SessionStore, engine: ChatEngine, session_id: str, content: str) -> tuple[Message, Message]:
-    """Send one user message through the engine and save both messages."""
-    session = store.get(session_id)  # raises SessionNotFoundError before we call the engine
-    user_message = Message(role="user", content=content)
+def clean_docs(docs: list[str] | None) -> list[str]:
+    """Picked document names from a request: bare file names only, no blanks or repeats."""
+    out: list[str] = []
+    for name in docs or []:
+        base = Path(str(name).strip()).name
+        if base and base not in out:
+            out.append(base)
+    return out
+
+
+def _doc_kwargs(docs: list[str]) -> dict[str, Any]:
+    """Pass `docs` only when the user picked some, so engines without the argument still work."""
+    return {"docs": docs} if docs else {}
+
+
+def run_chat_turn(
+    store: SessionStore, engine: ChatEngine, session_id: str, content: str, docs: list[str] | None = None
+) -> tuple[Message, Message]:
+    """Send one user message through the engine and save both messages.
+
+    `docs`: answer only from these files (None/[] = all documents); saved on the user message.
+    """
+    session = store.get(session_id)
+    picked = clean_docs(docs)
+    user_message = Message(role="user", content=content, docs=picked)
     try:
-        result = engine.invoke(message=content, history=session.messages, session_id=session_id)
+        result = engine.invoke(message=content, history=session.messages, session_id=session_id, **_doc_kwargs(picked))
         assistant_message = Message(
             role="assistant", content=result.answer, sources=result.sources, route=result.route
         )
@@ -37,14 +58,14 @@ def run_chat_turn(store: SessionStore, engine: ChatEngine, session_id: str, cont
 
 
 def _engine_events(
-    engine: ChatEngine, content: str, history: list[Message], session_id: str
+    engine: ChatEngine, content: str, history: list[Message], session_id: str, docs: list[str]
 ) -> Iterator[tuple[str, Any]]:
     """("route" | "token" | "result", data) from any engine; one without `stream()` answers in one piece."""
     stream = getattr(engine, "stream", None)
     if stream is not None:
-        yield from stream(message=content, history=history, session_id=session_id)
+        yield from stream(message=content, history=history, session_id=session_id, **_doc_kwargs(docs))
         return
-    result = engine.invoke(message=content, history=history, session_id=session_id)
+    result = engine.invoke(message=content, history=history, session_id=session_id, **_doc_kwargs(docs))
     if result.route:
         yield "route", result.route
     yield "token", result.answer
@@ -52,7 +73,7 @@ def _engine_events(
 
 
 def stream_chat_turn(
-    store: SessionStore, engine: ChatEngine, session_id: str, content: str
+    store: SessionStore, engine: ChatEngine, session_id: str, content: str, docs: list[str] | None = None
 ) -> Generator[tuple[str, Any], None, None]:
     """Like `run_chat_turn`, but yields the answer while it is being written.
 
@@ -60,15 +81,16 @@ def stream_chat_turn(
     after both messages are saved. Raises SessionNotFoundError right away for an unknown session.
     """
     session = store.get(session_id)
+    picked = clean_docs(docs)
 
     def events() -> Generator[tuple[str, Any], None, None]:
-        user_message = Message(role="user", content=content)
+        user_message = Message(role="user", content=content, docs=picked)
         parts: list[str] = []
         route = None
         try:
             try:
                 result = None
-                for kind, data in _engine_events(engine, content, session.messages, session_id):
+                for kind, data in _engine_events(engine, content, session.messages, session_id, picked):
                     if kind == "result":
                         result = data
                         continue
@@ -86,7 +108,6 @@ def stream_chat_turn(
                 logger.exception("Engine failed for session %s", session_id)
                 assistant_message = Message(role="assistant", content=f"Engine error: {type(exc).__name__}: {exc}")
         except GeneratorExit:
-            # the reader stopped (Stop button, closed tab): keep what was written so far
             partial = "".join(parts).strip()
             stopped = (partial + "\n\n" if partial else "") + "(stopped)"
             store.append_messages(session_id, user_message, Message(role="assistant", content=stopped, route=route))

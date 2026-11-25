@@ -27,13 +27,12 @@ import threading
 import warnings
 from pathlib import Path
 
-warnings.filterwarnings("ignore", category=SyntaxWarning)  # noisy third-party docstrings
+warnings.filterwarnings("ignore", category=SyntaxWarning)
 
 ROOT = Path(__file__).resolve().parent.parent
 ENV_PATH = ROOT / ".env"
 sys.path.insert(0, str(ROOT))
 
-# Newest first. The checker uses the first one your key can actually see.
 GROQ_PREFERRED = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "moonshotai/kimi-k2-instruct"]
 GOOGLE_PREFERRED = [
     "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash",
@@ -41,8 +40,8 @@ GOOGLE_PREFERRED = [
 
 OK, BAD, WARN = "PASS", "FAIL", "WARN"
 results: list[tuple[str, str, str]] = []
-CALL_TIMEOUT = 30   # seconds for one HTTP call to a provider
-STEP_LIMIT = 90     # hard ceiling for a whole provider check, so nothing can hang the script
+CALL_TIMEOUT = 30
+STEP_LIMIT = 90
 
 
 def step(msg: str) -> None:
@@ -103,7 +102,6 @@ def short_error(exc: Exception) -> str:
 def classify(exc: Exception) -> str:
     """Turn an exception into advice: bad key, wrong model, no network, or quota."""
     t = f"{type(exc).__name__} {exc}".lower()
-    # network problems first: a blocked proxy also says "403", which is NOT a bad key
     if "hung" in t:
         return "timed out: the service did not answer (network, VPN, or a key the service silently rejects)"
     if any(s in t for s in ("proxyerror", "connecterror", "connectionerror", "apiconnectionerror", "connection refused",
@@ -118,9 +116,6 @@ def classify(exc: Exception) -> str:
     if any(s in t for s in ("429", "quota", "rate limit", "resource_exhausted")):
         return "the key works but is out of quota / rate-limited"
     return "unexpected error"
-
-
-# --------------------------------------------------------------------------- .env helpers
 
 
 def read_env() -> dict[str, str]:
@@ -147,9 +142,6 @@ def write_env(updates: dict[str, str]) -> None:
             out.append(line)
     out += [f"{k}={v}" for k, v in updates.items() if k not in seen]
     ENV_PATH.write_text("\n".join(out) + "\n", encoding="utf-8")
-
-
-# --------------------------------------------------------------------------- provider checks
 
 
 def check_groq(key: str) -> str | None:
@@ -275,9 +267,6 @@ def check_langsmith(key: str, endpoint: str) -> str | None:
     return None
 
 
-# --------------------------------------------------------------------------- full app check
-
-
 def check_app() -> None:
     """Index the documents, then run real chat turns through the whole LangGraph."""
     from app.config import get_settings
@@ -312,9 +301,6 @@ def check_app() -> None:
         rag_ok = (route != "none") == expect_rag
         status = OK if r.answer and rag_ok else WARN
         report(f"Chat {q!r}", status, f"route={route} via {layer}, {len(r.sources)} sources, answer={r.answer[:70]!r}")
-
-
-# --------------------------------------------------------------------------- main
 
 
 def fix_key_slots(groq_key: str, google_key: str, updates: dict[str, str]) -> tuple[str, str]:
@@ -369,7 +355,6 @@ def apply_updates(env: dict[str, str], updates: dict[str, str], fix: bool) -> No
 
 def run_app_check(env: dict[str, str], provider: str, model: str, key: str, ls_endpoint: str | None) -> None:
     print("\n5. The app (real chat turns)")
-    # make this process use the chosen provider even without --fix
     os.environ.update(LLM_PROVIDER=provider, LLM_MODEL=model)
     os.environ["GROQ_API_KEY" if provider == "groq" else "GOOGLE_API_KEY"] = key
     if ls_endpoint:
@@ -414,8 +399,6 @@ def main() -> int:
     print(f"\nSummary: {passes} pass, {warns} warn, {len(fails)} fail")
     if ls_endpoint:
         print(f"Traces: https://smith.langchain.com  -> project {env.get('LANGSMITH_PROJECT', 'rag-chatbot')}")
-    # Only block start-up when the chatbot itself cannot work. A failed backup provider
-    # (or LangSmith) is reported above but does not stop the app.
     blocking = [r for r in fails if r[0] in ("App", "Index") or r[0].startswith("Chat")]
     if not model:
         print("Blocking: no LLM provider works, so the chatbot cannot answer.")
@@ -431,4 +414,4 @@ def main() -> int:
 if __name__ == "__main__":
     code = main()
     sys.stdout.flush()
-    os._exit(code)  # exit now: don't wait on abandoned (hung) SDK threads or trace uploads
+    os._exit(code)

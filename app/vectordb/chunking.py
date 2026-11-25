@@ -23,17 +23,14 @@ from typing import Protocol
 
 from app.models import Chunk, Document
 
-_HEADING = re.compile(r"^#{1,6}\s")          # markdown heading line, e.g. "## Leave"
-_BLANKLINE = re.compile(r"\n\s*\n")          # blank line = paragraph separator
-_PAGE_SEP = "\f"                             # form-feed = page break (used by PDFs, M6)
+_HEADING = re.compile(r"^#{1,6}\s")
+_BLANKLINE = re.compile(r"\n\s*\n")
+_PAGE_SEP = "\f"
 
 
 class Chunker(Protocol):
     def chunk(self, document: Document) -> list[Chunk]:
         ...
-
-
-# --------------------------------------------------------------------------- shared helpers
 
 
 def _pack_words(words: list[str], size: int, overlap: int) -> list[str]:
@@ -45,25 +42,21 @@ def _pack_words(words: list[str], size: int, overlap: int) -> list[str]:
     across the cut (rule-friendly: overlap only ADDS copies, it never drops text).
     """
     chunks: list[str] = []
-    cur: list[str] = []      # words in the chunk being built
-    cur_len = 0              # its length in characters (incl. the single spaces)
+    cur: list[str] = []
+    cur_len = 0
 
     for word in words:
         wlen = len(word)
         if wlen > size:
-            # Pathological token longer than a whole chunk: flush, then hard-split
-            # it so rule 3 (size limit) always holds. Natural text never hits this.
             if cur:
                 chunks.append(" ".join(cur))
                 cur, cur_len = [], 0
             chunks.extend(word[i : i + size] for i in range(0, wlen, size))
             continue
 
-        extra = wlen + (1 if cur else 0)  # +1 for the space before this word
+        extra = wlen + (1 if cur else 0)
         if cur_len + extra > size:
-            # This word would overflow -> close the current chunk first.
             chunks.append(" ".join(cur))
-            # Seed the next chunk with the last `overlap` characters of words.
             back: list[str] = []
             blen = 0
             for prev in reversed(cur):
@@ -72,7 +65,6 @@ def _pack_words(words: list[str], size: int, overlap: int) -> list[str]:
                     break
                 back.insert(0, prev)
                 blen += step
-            # Make sure the overlap + new word still fit inside `size`.
             while back and blen + wlen + 1 > size:
                 blen -= len(back[0]) + (1 if len(back) > 1 else 0)
                 back.pop(0)
@@ -84,7 +76,7 @@ def _pack_words(words: list[str], size: int, overlap: int) -> list[str]:
 
     if cur:
         chunks.append(" ".join(cur))
-    return [c for c in chunks if c.strip()]  # rule 2: never emit an empty chunk
+    return [c for c in chunks if c.strip()]
 
 
 def _merge_then_pack(pieces: list[str], size: int, overlap: int) -> list[str]:
@@ -103,13 +95,13 @@ def _merge_then_pack(pieces: list[str], size: int, overlap: int) -> list[str]:
             if cur:
                 out.append(cur)
                 cur = ""
-            out.extend(_pack_words(piece.split(), size, overlap))  # too big: split by words
+            out.extend(_pack_words(piece.split(), size, overlap))
             continue
         candidate = f"{cur}\n\n{piece}" if cur else piece
         if len(candidate) <= size:
-            cur = candidate                       # still fits: keep accumulating
+            cur = candidate
         else:
-            out.append(cur)                       # would overflow: start a new chunk
+            out.append(cur)
             cur = piece
     if cur:
         out.append(cur)
@@ -119,22 +111,19 @@ def _merge_then_pack(pieces: list[str], size: int, overlap: int) -> list[str]:
 def _finalize(document: Document, texts: list[str], meta_each: list[dict] | None) -> list[Chunk]:
     """Turn a list of chunk texts into Chunk objects with stable ids/positions."""
     chunks: list[Chunk] = []
-    for position, text in enumerate(texts):           # rule 6: 0,1,2,... in order
+    for position, text in enumerate(texts):
         meta = dict(meta_each[position]) if meta_each else {}
         chunks.append(
             Chunk(
-                id=f"{document.id}:{position}",       # unique + stable (rule 6)
-                doc_id=document.id,                   # rule 5
+                id=f"{document.id}:{position}",
+                doc_id=document.id,
                 text=text,
-                source=document.source,               # rule 5
+                source=document.source,
                 position=position,
                 metadata=meta,
             )
         )
     return chunks
-
-
-# --------------------------------------------------------------------------- strategies
 
 
 class FixedSizeChunker:
@@ -144,7 +133,7 @@ class FixedSizeChunker:
         self.size, self.overlap = size, overlap
 
     def chunk(self, document: Document) -> list[Chunk]:
-        if not document.text.strip():             # rule 1
+        if not document.text.strip():
             return []
         texts = _pack_words(document.text.split(), self.size, self.overlap)
         return _finalize(document, texts, None)
@@ -175,7 +164,7 @@ class MarkdownChunker:
         heading = ""
         buf: list[str] = []
         for line in text.splitlines():
-            if _HEADING.match(line):              # a new heading starts a new section
+            if _HEADING.match(line):
                 if buf:
                     sections.append((heading, "\n".join(buf)))
                 heading = line.lstrip("#").strip()
@@ -223,7 +212,6 @@ class PageChunker:
         return _finalize(document, texts, metas)
 
 
-# name -> class, so new strategies are one line to add (and one word in .env to pick)
 _REGISTRY: dict[str, type] = {
     "recursive": RecursiveChunker,
     "fixed": FixedSizeChunker,

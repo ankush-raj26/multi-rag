@@ -44,7 +44,7 @@ def test_named_page_is_kept_even_below_threshold() -> None:
 
 
 def test_plain_retrieve_contract_is_unchanged() -> None:
-    assert len(_retriever().retrieve("trains to Jodhpur", k=2)) == 2   # milestone contract: always k
+    assert len(_retriever().retrieve("trains to Jodhpur", k=2)) == 2
 
 
 def test_engine_reports_empty_search_and_shows_no_sources() -> None:
@@ -64,9 +64,9 @@ def test_gate_rejects_a_weak_best_match_that_clears_the_floor() -> None:
     r = _retriever()
     q = "how many days of annual leave do employees get"
     strict = HybridRetriever(store=r._store, embedder=r._embedder, k=3, mode="dense", min_score=0.1, min_top_score=0.9)
-    assert strict.retrieve_mode(q, "hybrid") == []          # best match below the gate -> nothing
+    assert strict.retrieve_mode(q, "hybrid") == []
     normal = HybridRetriever(store=r._store, embedder=r._embedder, k=3, mode="dense", min_score=0.1, min_top_score=0.35)
-    assert normal.retrieve_mode(q, "hybrid")                # best match clears it -> passages kept
+    assert normal.retrieve_mode(q, "hybrid")
 
 
 def test_off_topic_question_gets_the_scope_reply_without_asking_the_model() -> None:

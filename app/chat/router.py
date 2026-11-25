@@ -25,8 +25,6 @@ from typing import Any
 
 ROUTES = ("none", "dense", "bm25", "hybrid", "page", "agentic")
 
-# ----------------------------------------------------------------------- layer 1: regex
-
 _GREETING = re.compile(
     r"^\s*(hi+|hello+|hey+|hiya|yo|namaste|good\s+(morning|afternoon|evening)|"
     r"thanks?|thank\s+you|thx|ok(ay)?|bye|goodbye|how\s+are\s+you|who\s+are\s+you)"
@@ -35,8 +33,7 @@ _GREETING = re.compile(
 )
 _PAGE = re.compile(r"\bpage\s*(?:no\.?|number)?\s*(\d{1,4})\b", re.IGNORECASE)
 _EXACT = re.compile(r"(\"[^\"]+\"|\b[\w.+-]+@[\w-]+\.[\w.]+\b|\b[A-Z]{2,}-?\d+\b|\bclause\s+\d)", re.IGNORECASE)
-# Utility questions answered by a TOOL, not the documents: never search for these.
-_MATH = re.compile(r"\d\s*[-+*/x×÷^%]\s*\(?\s*\d")   # "18 * 24", "3x4", "100/7"
+_MATH = re.compile(r"\d\s*[-+*/x×÷^%]\s*\(?\s*\d")
 _CLOCK = re.compile(
     r"\bwhat\s+(time|day|date)\s+is\s+it\b"
     r"|\b(time|date)\b.*\b(now|today|right\s+now|currently)\b"
@@ -47,9 +44,9 @@ _CLOCK = re.compile(
 
 @dataclass
 class RouteDecision:
-    route: str            # one of ROUTES
-    layer: str            # "regex" | "semantic" | "llm" | "fallback"
-    reason: str           # human-readable why (shown in the UI)
+    route: str
+    layer: str
+    reason: str
     page: int | None = None
 
 
@@ -67,9 +64,6 @@ def _layer1_regex(query: str) -> RouteDecision | None:
     return None
 
 
-# ----------------------------------------------------------------------- layer 2: semantic
-
-# A few example questions per route. The query is routed to the closest examples.
 _PROTOTYPES: dict[str, list[str]] = {
     "none": ["how are you doing today", "tell me a joke", "what can you do", "nice to meet you"],
     "dense": [
@@ -91,8 +85,8 @@ _PROTOTYPES: dict[str, list[str]] = {
         "add the leave allowance and the remote stipend together",
     ],
 }
-_SEM_THRESHOLD = 0.55   # minimum cosine to trust a match
-_SEM_MARGIN = 0.05      # best must beat the runner-up by this much
+_SEM_THRESHOLD = 0.55
+_SEM_MARGIN = 0.05
 
 
 def _cos(a: list[float], b: list[float]) -> float:
@@ -113,7 +107,7 @@ class SemanticAnalyzer:
         if self._vectors:
             return
         for label, examples in _PROTOTYPES.items():
-            for vec in self._embedder.embed_documents(examples):   # one batch per route
+            for vec in self._embedder.embed_documents(examples):
                 self._labels.append(label)
                 self._vectors.append(vec)
 
@@ -122,15 +116,13 @@ class SemanticAnalyzer:
         q = self._embedder.embed_query(query)
         best: dict[str, float] = {}
         for label, vec in zip(self._labels, self._vectors, strict=True):
-            best[label] = max(best.get(label, -1.0), _cos(q, vec))  # best example per route
+            best[label] = max(best.get(label, -1.0), _cos(q, vec))
         ranked = sorted(best.items(), key=lambda kv: kv[1], reverse=True)
         (top, s1), (_, s2) = ranked[0], ranked[1]
         if s1 >= _SEM_THRESHOLD and s1 - s2 >= _SEM_MARGIN:
             return RouteDecision(top, "semantic", f"closest to '{top}' examples (cos {s1:.2f})")
-        return None  # not confident -> let layer 3 decide
+        return None
 
-
-# ----------------------------------------------------------------------- layer 3: LLM picker
 
 _PICKER_PROMPT = (
     "You route questions for a document Q&A bot. Pick exactly ONE label:\n"
@@ -147,13 +139,10 @@ def _layer3_llm(llm: Any, query: str) -> RouteDecision | None:
         text = str(getattr(reply, "content", "") or "").strip().lower()
     except Exception:
         return None
-    for label in ("agentic", "hybrid", "dense", "bm25", "none"):   # first valid label wins
+    for label in ("agentic", "hybrid", "dense", "bm25", "none"):
         if re.search(rf"\b{label}\b", text):
             return RouteDecision(label, "llm", f"LLM picker chose '{label}'")
-    return None  # unparseable answer -> fallback
-
-
-# ----------------------------------------------------------------------- the router
+    return None
 
 
 class QueryRouter:
@@ -170,15 +159,15 @@ class QueryRouter:
         return self._use_llm and self._llm is not None
 
     def route(self, query: str) -> RouteDecision:
-        if decision := _layer1_regex(query):                       # layer 1
+        if decision := _layer1_regex(query):
             return decision
-        if self._semantic is not None:                             # layer 2
+        if self._semantic is not None:
             try:
                 if decision := self._semantic.analyze(query):
                     return decision
             except Exception:
-                pass  # an embedding hiccup must never break the chat
-        if self._use_llm and self._llm is not None:                # layer 3
+                pass
+        if self._use_llm and self._llm is not None:
             if decision := _layer3_llm(self._llm, query):
                 return decision
         return RouteDecision("hybrid", "fallback", "no layer was confident — safe default")

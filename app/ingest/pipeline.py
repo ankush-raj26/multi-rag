@@ -21,7 +21,7 @@ from app.vectordb.embeddings import Embedder
 from app.vectordb.store import VectorStore
 
 SUPPORTED_SUFFIXES = (".md", ".txt", ".pdf")
-_PAGE_SEP = "\f"  # must match app/vectordb/chunking.PageChunker
+_PAGE_SEP = "\f"
 
 
 def _stable_id(source_name: str) -> str:
@@ -55,7 +55,7 @@ def load_document(path: Path) -> Document:
         text, page_count = _read_pdf(path)
         metadata = {"is_pdf": True, "pages": page_count}
     else:
-        text = path.read_text(encoding="utf-8")  # plain text / markdown
+        text = path.read_text(encoding="utf-8")
         metadata = {}
 
     return Document(id=_stable_id(source), text=text, source=source, metadata=metadata)
@@ -65,8 +65,6 @@ def ingest_file(path: Path, *, chunker: Chunker, embedder: Embedder, store: Vect
     """Load -> chunk -> embed -> (delete old copy) -> add. Returns chunks stored."""
     doc = load_document(path)
 
-    # PDFs always use the page-aware chunker so page numbers survive, whatever the
-    # global strategy is. Text/markdown use the chunker we were handed.
     active = chunker
     if doc.metadata.get("is_pdf"):
         from app.vectordb.chunking import get_chunker
@@ -75,11 +73,9 @@ def ingest_file(path: Path, *, chunker: Chunker, embedder: Embedder, store: Vect
 
     chunks = active.chunk(doc)
 
-    # Remove any previous version of this document FIRST, so running ingestion
-    # twice on the same file never creates duplicates.
     store.delete_document(doc.id)
     if chunks:
-        vectors = embedder.embed_documents([c.text for c in chunks])  # one batched call
+        vectors = embedder.embed_documents([c.text for c in chunks])
         store.add(chunks, vectors)
     return len(chunks)
 

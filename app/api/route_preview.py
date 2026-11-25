@@ -32,17 +32,17 @@ class PreviewHit(BaseModel):
 
 
 class RoutePreview(BaseModel):
-    route: str             # none | dense | bm25 | hybrid | page | agentic
-    layer: str             # regex | semantic | llm | fallback
+    route: str
+    layer: str
     reason: str
     page: int | None = None
-    picker_enabled: bool   # is router layer 3 switched on?
-    semantic_enabled: bool  # is router layer 2 available (an embedder exists)?
-    hits: list[PreviewHit] = Field(default_factory=list)  # what retrieval would find
-    hits_mode: str = ""    # which retrieval mode produced `hits`
-    index_chunks: int = 0  # chunks currently in the vector store
-    min_score: float | None = None  # relevance floor for each passage
-    min_top_score: float | None = None  # the best passage must reach this (the gate)
+    picker_enabled: bool
+    semantic_enabled: bool
+    hits: list[PreviewHit] = Field(default_factory=list)
+    hits_mode: str = ""
+    index_chunks: int = 0
+    min_score: float | None = None
+    min_top_score: float | None = None
 
 
 def _decide(components: Components, query: str) -> tuple[RouteDecision, bool]:
@@ -70,7 +70,6 @@ def preview_route(body: RouteQuery, components: Components = Depends(get_compone
     if decision.route == "none" or retriever is None:
         return preview
 
-    # The agent decides its own searches at answer time; show the hybrid hits it starts from.
     mode = decision.route if decision.route in ("dense", "bm25", "hybrid", "page") else "hybrid"
     if hasattr(retriever, "retrieve_mode"):
         hits = retriever.retrieve_mode(body.query, mode, k=3, page=decision.page)
@@ -84,7 +83,7 @@ def preview_route(body: RouteQuery, components: Components = Depends(get_compone
             source=h.chunk.source,
             chunk_id=h.chunk.id,
             page=h.chunk.metadata.get("page"),
-            score=round(h.chunk.metadata.get("relevance", h.score), 4),   # cosine similarity
+            score=round(h.chunk.metadata.get("relevance", h.score), 4),
             snippet=h.chunk.text[:220],
         )
         for h in hits

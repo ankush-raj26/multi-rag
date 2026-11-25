@@ -22,11 +22,17 @@ below the floor. Two numbers, calibrated on the live corpus:
   floor  each supporting passage must reach it (keeps useful context at ~0.55-0.6)
 If nothing passes, the bot answers without documents and shows no sources.
 `retrieve()` itself stays threshold-free: the milestone contract expects k results.
+
+DOCUMENT PICKER (`sources=`): the user can tick the files a question is about. Search then
+only looks inside those files, and the relevance gate/floor are skipped: the user already
+said where the answer is, so "summarize it" must not be turned away as "off-topic".
 """
 
 from __future__ import annotations
 
-from typing import Protocol
+import inspect
+from collections.abc import Collection
+from typing import Any, Protocol
 
 from langsmith import traceable
 
@@ -34,12 +40,20 @@ from app.models import RetrievedChunk
 from app.vectordb.embeddings import Embedder
 from app.vectordb.store import VectorStore, _cosine
 
-_RRF_K = 60  # standard RRF constant; dampens the weight of lower ranks
+_RRF_K = 60
 
 
 class Retriever(Protocol):
     def retrieve(self, query: str, k: int | None = None) -> list[RetrievedChunk]:
         ...
+
+
+def _takes_sources(method: Any) -> bool:
+    """Whether a store's search method accepts `sources=` (the evaluator's fakes do not)."""
+    try:
+        return "sources" in inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 def _rrf(result_lists: list[list[RetrievedChunk]], k: int) -> list[RetrievedChunk]:
@@ -72,40 +86,59 @@ class HybridRetriever:
         self._embedder = embedder
         self._k = k
         self._mode = mode
-        # None -> the embedder's own scale (bge-small ~0.55, hash ~0.1); 0 disables the filter
         self.min_score = min_score if min_score is not None else float(getattr(embedder, "relevance_floor", 0.0))
         gate = min_top_score if min_top_score is not None else getattr(embedder, "relevance_gate", None)
         self.min_top_score = max(float(gate), self.min_score) if gate is not None else self.min_score
 
-    @traceable(run_type="retriever")  # <- makes this a "retriever" run in LangSmith
-    def retrieve(self, query: str, k: int | None = None) -> list[RetrievedChunk]:
+    def _search(self, search: Any, arg: Any, n: int, sources: list[str] | None) -> list[RetrievedChunk]:
+        """Run one store search, limited to `sources` if given.
+
+        Stores that can't filter are asked for everything and filtered here instead.
+        """
+        if not sources:
+            return search(arg, n)
+        if _takes_sources(search):
+            return search(arg, n, sources=set(sources))
+        size = self._store.count() if hasattr(self._store, "count") else n * 50
+        return [h for h in search(arg, max(size, n)) if h.chunk.source in sources][:n]
+
+    @traceable(run_type="retriever")
+    def retrieve(
+        self, query: str, k: int | None = None, sources: Collection[str] | None = None
+    ) -> list[RetrievedChunk]:
+        """Top-k chunks for `query`; with `sources`, only chunks of those files."""
         top_k = k or self._k
-        # BM25 is only possible if the store exposes it (the test's fake store does not).
+        picked = list(sources) if sources else None
         can_bm25 = hasattr(self._store, "search_bm25")
         mode = self._mode if (self._mode != "hybrid" or can_bm25) else "dense"
 
         if mode == "bm25" and can_bm25:
-            return self._store.search_bm25(query, top_k)  # type: ignore[attr-defined]
+            return self._search(self._store.search_bm25, query, top_k, picked)  # type: ignore[attr-defined]
 
-        # Pull a slightly wider pool than needed so fusion/ranking has room to work.
         pool = max(top_k * 4, 10)
-        dense_hits = self._store.search(self._embedder.embed_query(query), pool)
+        dense_hits = self._search(self._store.search, self._embedder.embed_query(query), pool, picked)
         if mode == "dense":
             return dense_hits[:top_k]
 
-        # hybrid: fuse dense + BM25
-        bm25_hits = self._store.search_bm25(query, pool)  # type: ignore[attr-defined]
+        bm25_hits = self._search(self._store.search_bm25, query, pool, picked)  # type: ignore[attr-defined]
         return _rrf([dense_hits, bm25_hits], top_k)
 
 
     @traceable(run_type="retriever", name="retrieve_routed")
     def retrieve_mode(
-        self, query: str, mode: str, k: int | None = None, page: int | None = None
+        self,
+        query: str,
+        mode: str,
+        k: int | None = None,
+        page: int | None = None,
+        sources: Collection[str] | None = None,
     ) -> list[RetrievedChunk]:
         """Retrieve with the mode the ROUTER picked (dense/bm25/hybrid/page).
 
         For 'page', run hybrid over a wider pool and move chunks from the asked-for
         page to the front, so "what's on page 3" answers from page 3.
+        With `sources` (the document picker) only those files are searched, and nothing is
+        dropped for low relevance: the user told us which file holds the answer.
         """
         top_k = k or self._k
         if mode not in ("dense", "bm25", "hybrid", "page"):
@@ -113,21 +146,24 @@ class HybridRetriever:
         saved = self._mode
         self._mode = "hybrid" if mode == "page" else mode
         try:
-            hits = self.retrieve(query, k=top_k * 4 if mode == "page" else top_k)
+            hits = self.retrieve(query, k=top_k * 4 if mode == "page" else top_k, sources=sources)
         finally:
             self._mode = saved
         if mode == "page" and page is not None:
             on_page = [h for h in hits if h.chunk.metadata.get("page") == page]
             others = [h for h in hits if h.chunk.metadata.get("page") != page]
             hits = on_page + others
-        return self._keep_relevant(query, hits, page)[:top_k]
+        return self._keep_relevant(query, hits, page, keep_all=bool(sources))[:top_k]
 
-    def _keep_relevant(self, query: str, hits: list[RetrievedChunk], page: int | None) -> list[RetrievedChunk]:
+    def _keep_relevant(
+        self, query: str, hits: list[RetrievedChunk], page: int | None, keep_all: bool = False
+    ) -> list[RetrievedChunk]:
         """Score each hit by cosine(question, chunk) and drop the ones below `min_score`.
 
         The score is stored on the chunk as metadata["relevance"] (shown in the UI);
         the hit's own rank score is left untouched. A chunk from the page the user
         explicitly asked for is always kept: "what is on page 4" names its answer.
+        `keep_all` (documents picked by the user): score every hit but drop none.
         """
         if not hits:
             return []
@@ -135,18 +171,17 @@ class HybridRetriever:
         ids = [h.chunk.id for h in hits]
         vectors = self._store.vectors_for(ids) if hasattr(self._store, "vectors_for") else {}
         missing = [h for h in hits if h.chunk.id not in vectors]
-        if missing:   # stores without stored vectors: embed just those chunks, in one batch
+        if missing:
             vectors.update(zip((h.chunk.id for h in missing),
                                self._embedder.embed_documents([h.chunk.text for h in missing]), strict=True))
         rels = {h.chunk.id: round(_cosine(q, vectors[h.chunk.id]), 4) for h in hits}
         named = {h.chunk.id for h in hits if page is not None and h.chunk.metadata.get("page") == page}
-        # gate: unless the user named a page, the best passage must clearly be about the question
-        if not named and max(rels.values()) < self.min_top_score:
+        if not keep_all and not named and max(rels.values()) < self.min_top_score:
             return []
         kept: list[RetrievedChunk] = []
         for h in hits:
             rel = rels[h.chunk.id]
-            if rel >= self.min_score or h.chunk.id in named:
+            if keep_all or rel >= self.min_score or h.chunk.id in named:
                 chunk = h.chunk.model_copy(update={"metadata": {**h.chunk.metadata, "relevance": rel}})
                 kept.append(RetrievedChunk(chunk=chunk, score=h.score))
         return kept

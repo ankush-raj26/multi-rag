@@ -20,8 +20,6 @@ import re
 from typing import Protocol
 
 _WORD = re.compile(r"[a-z0-9]+")
-# Words that carry no topic. Without this, "trains from X to Y" looks related to every
-# chunk containing "from" and "to" (only used by the offline HashEmbedder).
 _STOPWORDS = frozenset(
     "a an the and or but of to in on at by for from with about as into over is are was were be been being "
     "do does did doing have has had i me my we our you your he she it its they them their this that these "
@@ -43,22 +41,16 @@ class Embedder(Protocol):
         ...
 
 
-# --------------------------------------------------------------------------- fastembed (default)
-
-
 class FastEmbedEmbedder:
     """Wraps a local fastembed model. The model file downloads once, then runs offline."""
 
-    # Calibrated on the live corpus: real questions' best match scored >= 0.63, off-topic
-    # ones <= 0.57 (a typo-heavy off-topic question reached 0.57). So:
-    relevance_floor = 0.55   # keep a supporting passage at or above this (RETRIEVAL_MIN_SCORE)
-    relevance_gate = 0.60    # ...but only if the BEST passage reaches this (RETRIEVAL_MIN_TOP_SCORE)
+    relevance_floor = 0.55
+    relevance_gate = 0.60
 
     def __init__(self, model_name: str) -> None:
-        from fastembed import TextEmbedding  # imported lazily so other backends don't need it
+        from fastembed import TextEmbedding
 
         self._model = TextEmbedding(model_name=model_name)
-        # Probe one vector to learn the dimension (varies per model).
         self._dim = len(next(iter(self._model.embed(["dimension probe"]))))
 
     @property
@@ -66,16 +58,12 @@ class FastEmbedEmbedder:
         return self._dim
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        if not texts:                      # rule: embed_documents([]) -> []
+        if not texts:
             return []
-        # fastembed batches internally over the iterable and keeps input order.
         return [vec.tolist() for vec in self._model.embed(texts)]
 
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]
-
-
-# --------------------------------------------------------------------------- google / gemini
 
 
 class GoogleEmbedder:
@@ -97,13 +85,10 @@ class GoogleEmbedder:
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        return self._model.embed_documents(texts)  # the client batches the request
+        return self._model.embed_documents(texts)
 
     def embed_query(self, text: str) -> list[float]:
         return self._model.embed_query(text)
-
-
-# --------------------------------------------------------------------------- hash fallback
 
 
 class HashEmbedder:
@@ -113,7 +98,6 @@ class HashEmbedder:
     which is enough for tests and for a fully offline demo.
     """
 
-    # bag-of-words over topic words: one shared topic word already scores ~0.2-0.3
     relevance_floor = 0.3
 
     def __init__(self, dimension: int = 384) -> None:
@@ -125,12 +109,12 @@ class HashEmbedder:
 
     def _embed(self, text: str) -> list[float]:
         vec = [0.0] * self._dim
-        for word in _WORD.findall(text.lower()):               # count each topic word
+        for word in _WORD.findall(text.lower()):
             if word in _STOPWORDS:
                 continue
             bucket = int(hashlib.md5(word.encode()).hexdigest(), 16) % self._dim
             vec[bucket] += 1.0
-        norm = math.sqrt(sum(v * v for v in vec)) or 1.0       # L2-normalise -> cosine-ready
+        norm = math.sqrt(sum(v * v for v in vec)) or 1.0
         return [v / norm for v in vec]
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
@@ -152,5 +136,4 @@ def get_embedder() -> Embedder:
         return FastEmbedEmbedder(spec.split(":", 1)[1])
     if spec.lower().startswith("google:"):
         return GoogleEmbedder(spec.split(":", 1)[1])
-    # Bare model name with no backend prefix: assume it's a fastembed model.
     return FastEmbedEmbedder(spec)

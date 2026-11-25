@@ -16,22 +16,19 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
-# --------------------------------------------------------------------------- RAG types
-
-
 class Document(BaseModel):
     """A whole source file after loading. `id` must be stable for the same file."""
 
     id: str
     text: str
-    source: str  # file name, e.g. "leave_policy.md"
+    source: str
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class Chunk(BaseModel):
     """A piece of a Document. `position` is 0, 1, 2 ... in document order."""
 
-    id: str  # must be unique and stable, e.g. f"{doc_id}:{position}"
+    id: str
     doc_id: str
     text: str
     source: str
@@ -53,17 +50,15 @@ class Source(BaseModel):
     chunk_id: str
     score: float | None = None
     snippet: str = ""
-    page: int | None = None  # PDF page number (page-index RAG), None for md/txt
+    page: int | None = None
 
 
 class RouteInfo(BaseModel):
     """Which retrieval route the 3-layer router picked, and why (shown in the UI)."""
 
-    route: str            # none | dense | bm25 | hybrid | page | agentic
-    layer: str            # regex | semantic | llm | fallback
+    route: str
+    layer: str
     reason: str = ""
-    # How many passages passed the relevance threshold. None = no search was run
-    # (route "none"); 0 = searched, but nothing in the documents was about the question.
     retrieved: int | None = None
 
 
@@ -72,10 +67,7 @@ class EngineResult(BaseModel):
 
     answer: str
     sources: list[Source] = Field(default_factory=list)
-    route: RouteInfo | None = None  # optional extra: the router's decision
-
-
-# --------------------------------------------------------------------------- chat sessions
+    route: RouteInfo | None = None
 
 
 class Message(BaseModel):
@@ -83,7 +75,8 @@ class Message(BaseModel):
     content: str
     timestamp: str = Field(default_factory=utc_now)
     sources: list[Source] = Field(default_factory=list)
-    route: RouteInfo | None = None  # saved so the badge still shows after a reload
+    route: RouteInfo | None = None
+    docs: list[str] = Field(default_factory=list)
 
 
 class Session(BaseModel):

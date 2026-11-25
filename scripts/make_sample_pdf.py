@@ -17,7 +17,6 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
 
 OUT = Path(__file__).resolve().parent.parent / "data" / "documents" / "acme_handbook.pdf"
 
-# (page title, body) — each page holds distinct, checkable facts.
 PAGES = [
     ("Acme Corp — Employee Handbook (2026)",
      "This handbook explains how we work at Acme Corp. Use the sidebar page selector "
@@ -74,7 +73,7 @@ def build() -> None:
         flow.append(Spacer(1, 0.6 * cm))
         flow.append(Paragraph(f"(Acme Corp Employee Handbook — page {i + 1})", styles["Italic"]))
         if i != len(PAGES) - 1:
-            flow.append(PageBreak())          # one topic per page
+            flow.append(PageBreak())
     doc.build(flow)
     print(f"wrote {OUT} ({len(PAGES)} pages)")
 

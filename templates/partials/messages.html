@@ -5,9 +5,7 @@
 {% for m in messages %}
 <article class="message {{ m.role }}"
   {% if m.route %}data-route="{{ m.route.route }}" data-layer="{{ m.route.layer }}" data-reason="{{ m.route.reason }}"{% if m.route.retrieved is not none %} data-retrieved="{{ m.route.retrieved }}"{% endif %}{% endif %}>
-  {# Which route the 3-layer router chose: the stamp replays it in the router panel #}
   {% if m.route %}
-    {# searched but nothing passed the relevance threshold: say so instead of just naming the route #}
     {% set empty = m.route.retrieved == 0 and m.route.route != "none" %}
     <button type="button" class="stamp{% if empty %} is-empty{% endif %}" data-replay title="{{ m.route.reason }}">
       <span class="slots" aria-hidden="true">{% for r in ROUTES %}<i{% if r == m.route.route %} class="on"{% endif %}></i>{% endfor %}</span>
@@ -17,6 +15,9 @@
     </button>
   {% endif %}
   <div class="content" {% if m.role == "assistant" %}data-md{% endif %}>{{ m.content }}</div>
+  {% if m.docs %}
+  <div class="doc-tags" aria-label="Asked about">{% for d in m.docs %}<span class="doc-tag">{{ icon("file", 12) }}{{ d }}</span>{% endfor %}</div>
+  {% endif %}
   {% if m.sources %}
   <details class="sources">
     <summary>{{ icon("chevron", 14) }}{{ m.sources|length }} source{{ "s" if m.sources|length != 1 }}</summary>
@@ -26,7 +27,6 @@
         <div class="source-head">
           <span class="source-name">{{ s.source }}</span>
           {% if s.score is not none %}<span class="source-score">{{ "%.2f"|format(s.score) }}</span>{% endif %}
-          {# For PDF chunks a page number is present -> offer a "jump to page" button #}
           {% if s.page is not none and s.source.lower().endswith('.pdf') %}
             <button type="button" class="chip" data-pdf="{{ s.source }}" data-page="{{ s.page }}">{{ icon("file", 14) }}Page {{ s.page }}</button>
           {% endif %}

@@ -14,7 +14,6 @@ from collections.abc import Callable
 
 from langchain_core.tools import tool
 
-# The only operations we permit. A node of any other type is rejected.
 _BIN: dict[type, Callable[[float, float], float]] = {
     ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
     ast.Div: operator.truediv, ast.FloorDiv: operator.floordiv,
@@ -31,7 +30,6 @@ def _eval(node: ast.AST) -> float:
         return _BIN[type(node.op)](_eval(node.left), _eval(node.right))
     if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY:
         return _UNARY[type(node.op)](_eval(node.operand))
-    # Names, function calls, attribute access, etc. are NOT allowed.
     raise ValueError("unsupported expression")
 
 
@@ -45,7 +43,6 @@ def calculator(expression: str) -> str:
         result = _eval(ast.parse(expression, mode="eval").body)
     except Exception:
         return f"Error: cannot evaluate {expression!r} (only plain arithmetic is allowed)"
-    # Show 14 rather than 14.0 when the result is a whole number.
     if isinstance(result, float) and result.is_integer():
         result = int(result)
     return str(result)

@@ -23,5 +23,5 @@ def search_documents(query: str) -> str:
         if not hits:
             return "No matching passages found."
         return "\n\n".join(f"[{h.chunk.source}] {h.chunk.text}" for h in hits)
-    except Exception as exc:  # never crash the agent loop
+    except Exception as exc:
         return f"Error: document search unavailable ({type(exc).__name__})"

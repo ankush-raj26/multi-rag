@@ -41,14 +41,31 @@ SYSTEM_PROMPT = (
     "If the context does not contain the answer, say so plainly instead of guessing. "
     "Exception: you may use the calculator and current date/time tools for any question."
 )
-# Sent WITHOUT calling the model when a search finds nothing relevant: deterministic, free,
-# and it can't drift into answering general-knowledge questions.
 OUT_OF_SCOPE_REPLY = (
     "I can only help with questions about the company and its documents, such as leave, "
     "expenses, remote work, onboarding, IT support and benefits. I couldn't find anything "
     "about that in them, so I won't guess.\n\n"
     "I can also do calculations and tell you the current date and time."
 )
+PICKED_EMPTY_REPLY = (
+    "I couldn't find anything about that in the selected document{s}: {names}. "
+    "Pick another document, or choose All documents, and ask again."
+)
+
+
+def _picked_prompt(docs: list[str]) -> str:
+    """System note for a turn the user limited to some documents."""
+    return (
+        f"The user selected these documents for this question: {', '.join(docs)}. "
+        "Answer ONLY from the context below, which comes from those documents. "
+        "If they do not contain the answer, say so and do not use any other knowledge."
+    )
+
+
+def _picked_empty(docs: list[str]) -> str:
+    return PICKED_EMPTY_REPLY.format(s="s" if len(docs) != 1 else "", names=", ".join(docs))
+
+
 AGENT_PROMPT = (
     "You are a research agent for a company knowledge base. For multi-step questions, "
     "plan first, use `search_knowledge_base` (more than once if needed) to gather facts, "
@@ -60,30 +77,32 @@ AGENT_PROMPT = (
 class ChatEngine(Protocol):
     graph: Any
 
-    def invoke(self, message: str, history: list[Message], session_id: str) -> EngineResult:
+    def invoke(
+        self, message: str, history: list[Message], session_id: str, docs: list[str] | None = None
+    ) -> EngineResult:
         ...
 
 
 class PlaceholderEngine:
     graph: Any = None
 
-    def invoke(self, message: str, history: list[Message], session_id: str) -> EngineResult:
+    def invoke(
+        self, message: str, history: list[Message], session_id: str, docs: list[str] | None = None
+    ) -> EngineResult:
         return EngineResult(answer=PLACEHOLDER_ANSWER, sources=[])
 
 
-# --------------------------------------------------------------------------- state
-
-
 class GraphState(TypedDict, total=False):
-    messages: Annotated[list[BaseMessage], add_messages]  # nodes APPEND to this
-    context: str            # retrieved text (M7)
-    sources: list[Source]   # shown under the answer (M7)
-    route: str              # router decision: none|dense|bm25|hybrid|page|agentic
-    route_layer: str        # which layer decided: regex|semantic|llm|fallback
-    route_reason: str       # why, in plain words (shown as a badge in the UI)
-    page: int | None        # page number for the 'page' route
-    retrieved: int          # passages that passed the relevance threshold (0 = nothing relevant)
-    out_of_scope: bool      # searched, nothing relevant -> fixed reply, the model is not asked
+    messages: Annotated[list[BaseMessage], add_messages]
+    context: str
+    sources: list[Source]
+    route: str
+    route_layer: str
+    route_reason: str
+    page: int | None
+    retrieved: int
+    out_of_scope: bool
+    docs: list[str]
 
 
 def _to_langchain_messages(history: list[Message]) -> list[BaseMessage]:
@@ -138,10 +157,9 @@ def _to_sources(hits: list[RetrievedChunk]) -> list[Source]:
             Source(
                 source=h.chunk.source,
                 chunk_id=h.chunk.id,
-                # real cosine similarity when the retriever measured it, else the rank score
                 score=h.chunk.metadata.get("relevance", h.score),
                 snippet=h.chunk.text[:200],
-                page=h.chunk.metadata.get("page"),  # set for PDF chunks -> UI can jump
+                page=h.chunk.metadata.get("page"),
             )
         )
     return out
@@ -156,10 +174,10 @@ class ChatEngineImpl:
         embedder: Any | None = None,
         use_llm_picker: bool = True,
     ) -> None:
-        self._raw_llm = llm                       # unbound model: used by router + deep agent
+        self._raw_llm = llm
         self._retriever = retriever
         self._tools = tools or []
-        self._llm = llm.bind_tools(self._tools) if self._tools else llm  # M8
+        self._llm = llm.bind_tools(self._tools) if self._tools else llm
         self._router = QueryRouter(llm=llm, embedder=embedder, use_llm=use_llm_picker)
         self._deep_agents_ok = self._check_deepagents()
         self.graph = self._build_graph()
@@ -172,7 +190,6 @@ class ChatEngineImpl:
             return False
         return True
 
-    # ----- nodes ----------------------------------------------------------
     @property
     def picker_enabled(self) -> bool:
         """Whether router layer 3 (the LLM picker) is switched on."""
@@ -185,7 +202,6 @@ class ChatEngineImpl:
         decision instead of a re-implementation of it.
         """
         decision: RouteDecision = self._router.route(query)
-        # Downgrade routes we can't serve with the pieces we were given.
         if decision.route == "agentic" and not (self._deep_agents_ok and self._retriever is not None):
             decision.route = "hybrid"
             decision.reason += " (agent unavailable -> hybrid)"
@@ -205,7 +221,7 @@ class ChatEngineImpl:
         """Conditional edge: which node runs after `route`."""
         route = state.get("route", "hybrid")
         if route == "none" or self._retriever is None:
-            return "generate"          # greetings (or no index yet): answer directly
+            return "generate"
         if route == "agentic":
             return "deep_agent"
         return "retrieve"
@@ -214,13 +230,16 @@ class ChatEngineImpl:
         """RAG step with the mode the router picked."""
         query = _last_user_text(state["messages"])
         mode = state.get("route", "hybrid")
+        docs = state.get("docs") or []
         if self._retriever is None:
             return {"context": "", "sources": []}
         if not hasattr(self._retriever, "retrieve_mode"):
-            hits = self._retriever.retrieve(query)   # evaluator's fakes only have retrieve()
+            hits = self._retriever.retrieve(query)
+            if docs:
+                hits = [h for h in hits if h.chunk.source in docs]
         else:
             hits = self._relevant(query, mode, state)
-            if not hits:   # nothing in the documents is about this: decline, don't ask the model
+            if not hits:
                 return {"context": "", "sources": [], "retrieved": 0, "out_of_scope": True}
         context = "\n\n".join(
             f"[{h.chunk.source}{' p.' + str(h.chunk.metadata['page']) if h.chunk.metadata.get('page') else ''}] "
@@ -233,31 +252,44 @@ class ChatEngineImpl:
         """Relevance-checked search. A short follow-up ("and for part-timers?") means little on
         its own, so if nothing passes, try once more with the previous question attached."""
         assert self._retriever is not None
-        hits: list[RetrievedChunk] = self._retriever.retrieve_mode(query, mode, page=state.get("page"))  # type: ignore[attr-defined]
+        retrieve: Any = self._retriever.retrieve_mode  # type: ignore[attr-defined]
+        extra = {"sources": docs} if (docs := state.get("docs")) else {}
+        hits: list[RetrievedChunk] = retrieve(query, mode, page=state.get("page"), **extra)
         previous = _previous_user_text(state["messages"])
         if not hits and previous:
-            hits = self._retriever.retrieve_mode(f"{previous}\n{query}", mode, page=state.get("page"))  # type: ignore[attr-defined]
+            hits = retrieve(f"{previous}\n{query}", mode, page=state.get("page"), **extra)
         return hits
 
     def _generate(self, state: GraphState) -> dict[str, Any]:
+        docs = state.get("docs") or []
         if state.get("out_of_scope"):
-            return {"messages": [AIMessage(content=OUT_OF_SCOPE_REPLY)]}
+            return {"messages": [AIMessage(content=_picked_empty(docs) if docs else OUT_OF_SCOPE_REPLY)]}
         prompt: list[BaseMessage] = [SystemMessage(content=SYSTEM_PROMPT)]
+        if docs:
+            prompt.append(SystemMessage(content=_picked_prompt(docs)))
         if state.get("context"):
             prompt.append(SystemMessage(content=f"Context from documents:\n{state['context']}"))
         prompt.extend(state["messages"])
-        return {"messages": [self._llm.invoke(prompt)]}
+        return {"messages": [self._llm_for(docs).invoke(prompt)]}
+
+    def _llm_for(self, docs: list[str]) -> Any:
+        """The model for this turn. With picked documents, leave out `search_documents`:
+        it searches every file, and the context already holds the picked ones."""
+        if not docs or not any(t.name == "search_documents" for t in self._tools):
+            return self._llm
+        scoped = [t for t in self._tools if t.name != "search_documents"]
+        return self._raw_llm.bind_tools(scoped) if scoped else self._raw_llm
 
     def _deep_agent(self, state: GraphState) -> dict[str, Any]:
         """Agentic RAG: a deepagents agent plans, searches and calculates on its own."""
-        # Never start an agent for a question the documents say nothing about.
+        docs = state.get("docs") or []
         if self._retriever is not None and hasattr(self._retriever, "retrieve_mode"):
             if not self._relevant(_last_user_text(state["messages"]), "hybrid", state):
-                return {"messages": [AIMessage(content=OUT_OF_SCOPE_REPLY)], "sources": [], "retrieved": 0,
-                        "out_of_scope": True}
+                reply = _picked_empty(docs) if docs else OUT_OF_SCOPE_REPLY
+                return {"messages": [AIMessage(content=reply)], "sources": [], "retrieved": 0, "out_of_scope": True}
         from deepagents import create_deep_agent
 
-        collected: list[RetrievedChunk] = []   # every chunk the agent looked at -> sources
+        collected: list[RetrievedChunk] = []
         retriever = self._retriever
 
         @tool
@@ -266,9 +298,9 @@ class ChatEngineImpl:
             if retriever is None:
                 hits = []
             elif hasattr(retriever, "retrieve_mode"):
-                hits = retriever.retrieve_mode(query, "hybrid")   # same relevance threshold as RAG
+                hits = retriever.retrieve_mode(query, "hybrid", **({"sources": docs} if docs else {}))
             else:
-                hits = retriever.retrieve(query)
+                hits = [h for h in retriever.retrieve(query) if not docs or h.chunk.source in docs]
             collected.extend(hits)
             if not hits:
                 return "No matching passages found."
@@ -276,15 +308,14 @@ class ChatEngineImpl:
 
         agent_tools = [search_knowledge_base, *[t for t in self._tools if t.name != "search_documents"]]
         try:
-            # Building the agent sits inside the try too: a bad model/tool setup must
-            # fall back to plain RAG, not crash the chat.
-            agent: Any = create_deep_agent(model=self._raw_llm, tools=agent_tools, system_prompt=AGENT_PROMPT)
+            prompt = AGENT_PROMPT + (" " + _picked_prompt(docs) if docs else "")
+            agent: Any = create_deep_agent(model=self._raw_llm, tools=agent_tools, system_prompt=prompt)
             result = agent.invoke({"messages": list(state["messages"])})
             answer_msg = next(
                 (m for m in reversed(result["messages"]) if isinstance(m, AIMessage) and m.content), None
             )
             reply = AIMessage(content=answer_msg.content if answer_msg else "The agent returned no answer.")
-        except Exception as exc:  # never break the chat: fall back to a plain RAG answer
+        except Exception as exc:
             logger.exception("deep agent failed, falling back to hybrid RAG")
             reason = f"{state.get('route_reason', '')} (agent error: {exc}) -> hybrid fallback"
             fallback = self._retrieve(cast(GraphState, {**state, "route": "hybrid"}))
@@ -293,7 +324,6 @@ class ChatEngineImpl:
         sources = _to_sources(collected)
         return {"messages": [reply], "sources": sources, "retrieved": len(sources)}
 
-    # ----- wiring ---------------------------------------------------------
     def _build_graph(self) -> Any:
         builder = StateGraph(GraphState)
         builder.add_node("route", self._route)
@@ -311,17 +341,16 @@ class ChatEngineImpl:
 
         if self._tools:
             builder.add_node("tools", ToolNode(self._tools))
-            builder.add_conditional_edges("generate", tools_condition)  # tool call? -> tools
+            builder.add_conditional_edges("generate", tools_condition)
             builder.add_edge("tools", "generate")
         else:
             builder.add_edge("generate", END)
         return builder.compile()
 
-    # ----- public API -----------------------------------------------------
     @staticmethod
-    def _initial(message: str, history: list[Message]) -> GraphState:
+    def _initial(message: str, history: list[Message], docs: list[str] | None = None) -> GraphState:
         start = [*_to_langchain_messages(history), HumanMessage(content=message)]
-        return {"messages": start, "context": "", "sources": []}
+        return {"messages": start, "context": "", "sources": [], "docs": list(docs or [])}
 
     @staticmethod
     def _result(final: dict[str, Any]) -> EngineResult:
@@ -338,11 +367,17 @@ class ChatEngineImpl:
             )
         return EngineResult(answer=answer, sources=final.get("sources", []), route=route)
 
-    def invoke(self, message: str, history: list[Message], session_id: str) -> EngineResult:
-        final = self.graph.invoke(self._initial(message, history), config={"metadata": {"session_id": session_id}})
+    def invoke(
+        self, message: str, history: list[Message], session_id: str, docs: list[str] | None = None
+    ) -> EngineResult:
+        """One turn. `docs`: answer only from these files (None/[] = all documents)."""
+        config = {"metadata": {"session_id": session_id, "docs": docs or []}}
+        final = self.graph.invoke(self._initial(message, history, docs), config=config)
         return self._result(final)
 
-    def stream(self, message: str, history: list[Message], session_id: str) -> Iterator[tuple[str, Any]]:
+    def stream(
+        self, message: str, history: list[Message], session_id: str, docs: list[str] | None = None
+    ) -> Iterator[tuple[str, Any]]:
         """Run the same graph, yielding events as they happen:
 
             ("route", RouteInfo)    as soon as the router has decided
@@ -354,16 +389,16 @@ class ChatEngineImpl:
         """
         final: dict[str, Any] = {"messages": []}
         for mode, data in self.graph.stream(
-            self._initial(message, history),
-            config={"metadata": {"session_id": session_id}},
+            self._initial(message, history, docs),
+            config={"metadata": {"session_id": session_id, "docs": docs or []}},
             stream_mode=["updates", "messages"],
         ):
             if mode == "messages":
-                chunk, meta = data   # AIMessageChunk from streaming models, one AIMessage otherwise
+                chunk, meta = data
                 if meta.get("langgraph_node") == "generate" and isinstance(chunk, AIMessage) and chunk.content:
                     yield "token", _text(chunk.content)
                 continue
-            for node, update in data.items():   # mode == "updates": {node: what it returned}
+            for node, update in data.items():
                 if not update:
                     continue
                 for key, value in update.items():
