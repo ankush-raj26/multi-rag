@@ -279,8 +279,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 .ask__grid { display: grid; grid-template-columns: 1fr 1.15fr; gap: var(--sc-8); align-items: start; padding-right: max(var(--sc-gutter), 380px); }
 .ask__title { font: 600 var(--sc-t-2xl)/1 var(--sc-font-display); letter-spacing: -0.03em; margin: 0; text-wrap: balance; }
 .ask__body { margin: var(--sc-5) 0 0; color: var(--sc-ink-soft); max-width: 40ch; }
-.ask__docs { margin: var(--sc-4) 0 0; font-size: var(--sc-t-sm); color: var(--sc-ink-soft); }
-.ask__docs a { color: var(--sc-ink); }
 .askform textarea {
   width: 100%; resize: vertical; padding: 14px; border: 1px solid var(--line); background: #FFFFFF;
   font: 500 var(--sc-t-base)/1.45 var(--sc-font-mono); color: var(--sc-accent); box-shadow: var(--sc-e1);

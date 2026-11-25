@@ -260,7 +260,6 @@
         <p class="sheet-code">Sheet R-6 · Ask</p>
         <h2 class="ask__title">Now ask the real one.</h2>
         <p class="ask__body">Same router, same documents{% if chunks %} ({{ chunks }} chunks indexed){% endif %}, a real model behind it. The answer shows which route it took and where it found it.</p>
-        {% if documents %}<p class="ask__docs">Indexed from: {% for d in documents %}<a href="{{ url_for('serve_document', name=d) }}" target="_blank" rel="noopener">{{ d }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
       </div>
       <form class="askform" id="askform" method="post" action="/ui/start" {% if auth and not user %}data-needs-account="/auth?mode=signup"{% endif %}>
         <label for="ask-q" class="qform__label">Message</label>
