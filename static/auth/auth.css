@@ -129,6 +129,5 @@ body[data-mode="verify"] .desk-tabs, body[data-mode="reset"] .desk-tabs { displa
 .desk-error { margin: 0 0 var(--sc-4); padding: 10px 12px; border-left: 3px solid var(--danger); background: color-mix(in oklab, var(--danger) 8%, transparent); font-size: 14px; }
 .desk-note { margin: 0 0 var(--sc-4); padding: 10px 12px; border-left: 3px solid var(--sc-accent); background: color-mix(in oklab, var(--sc-accent) 8%, transparent); font-size: 14px; }
 
-.desk-foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font: 500 11px/1.6 var(--sc-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--sc-ink-soft); }
 
 @media (prefers-reduced-motion: reduce) { .lk-blade { transition: none; } }
