@@ -9,6 +9,7 @@
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const animate = (el, keys, opts) => (M && !reduced && el ? M.animate(el, keys, opts) : null);
   body.classList.add("js");
+  if (reduced) body.classList.add("reduced");
 
   const errorBox = $("#desk-error"), noteBox = $("#desk-note");
   const hide = (el) => { if (el) el.hidden = true; };
@@ -25,13 +26,16 @@
   // ---- panels + the sliding tab ink ---------------------------------------
   const PANELS = ["signin", "signup", "forgot", "verify", "reset"];
   const ink = $("#desk-ink");
+  let inkPlaced = false;
   function moveInk(mode) {
     const tab = $(`.desk-tab[data-go="${mode}"]`);
     if (!ink) return;
     if (!tab) { ink.style.opacity = 0; return; }
     ink.style.opacity = 1;
     const x = tab.offsetLeft, w = tab.offsetWidth;
-    if (!animate(ink, { x, width: w }, { duration: 0.35, easing: [0.22, 1, 0.36, 1] })) { ink.style.transform = `translateX(${x}px)`; ink.style.width = `${w}px`; }
+    const slide = inkPlaced && animate(ink, { x, width: w }, { duration: 0.35, easing: [0.22, 1, 0.36, 1] });
+    if (!slide) { ink.style.transform = `translateX(${x}px)`; ink.style.width = `${w}px`; }
+    inkPlaced = true;
   }
   let current = null;
   function show(mode, push = true) {
@@ -57,19 +61,19 @@
   show(initial === "sent" ? "signin" : initial, false);
   addEventListener("resize", () => moveInk(current === "forgot" ? "signin" : current));
 
-  // ---- the lock: pins settle on the shear line as the key is cut ----------
-  const PINS = $$(".pin-bar"), note = $("#lk-note"), state = $("#lock-state");
-  const SHEAR = 100, TOP = 56, N = PINS.length, MIN = 8;
+  // ---- the signature: drawn on load; the ticks fill as a password is typed -----
+  const ticks = $$(".sig-tick"), state = $("#sig-state");
+  const MIN = 8;
   function cut(n) {
-    const settled = Math.min(n, N);
-    PINS.forEach((pin, i) => {
-      // settled pins sit on the shear line; the rest float above it at their own height
-      const h = i < settled ? SHEAR - TOP - 2 : 28 + ((i * 37) % 5) * 3;
-      const y = i < settled ? TOP + 2 : TOP;
-      if (!animate(pin, { height: h, y }, { type: "spring", stiffness: 260, damping: 18, mass: 0.6 })) { pin.setAttribute("height", h); pin.setAttribute("y", y); }
+    const set = Math.min(n, ticks.length);
+    ticks.forEach((t, i) => {
+      const on = i < set;
+      if (on !== t.classList.contains("is-on")) {
+        t.classList.toggle("is-on", on);
+        if (on) animate(t, { y2: [128, 137], opacity: [0.4, 1] }, { duration: 0.3, easing: [0.22, 1, 0.36, 1] });
+      }
     });
-    if (note) note.textContent = `${settled} of ${N} pins set${n >= MIN ? " · it turns" : ""}`;
-    if (state) state.textContent = n >= MIN ? "open" : "locked";
+    if (state) state.textContent = n >= MIN ? "signed" : `${set} of ${ticks.length}`;
   }
   $$("input[data-cuts]").forEach((inp) => {
     inp.addEventListener("input", () => cut(inp.value.length));

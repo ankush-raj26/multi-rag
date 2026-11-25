@@ -17,26 +17,21 @@
   <section class="plate" aria-label="About this chatbot">
     <p class="plate-label" data-in>Access · Sheet A-1</p>
     <h1 class="plate-title" data-in>Every answer here is signed.</h1>
-    <p class="plate-lede" data-in>Your chats, your documents, your history, kept under your name. Type a password and watch the pins settle.</p>
+    <p class="plate-lede" data-in>Your chats, your documents, your history, kept under your name. Pick a password and sign for it.</p>
 
-    <figure class="lock" data-in aria-hidden="true">
-      <svg class="lock-svg" viewBox="0 0 420 170">
-        <!-- cylinder body -->
-        <rect class="lk-body" x="20" y="40" width="380" height="120" rx="4"/>
-        <line class="lk-shear" x1="20" y1="100" x2="400" y2="100"/>
-        <text class="lk-text" x="30" y="32">shear line</text>
-        <text class="lk-text lk-text--r" x="390" y="32" text-anchor="end" id="lock-state">locked</text>
-        <!-- pins: 8 chambers; each pin is a bar that rests high and drops to the shear line as the key is cut -->
-        <g id="pins">
-          {% for i in range(8) %}
-          <g class="pin" transform="translate({{ 52 + i * 44 }} 0)">
-            <rect class="pin-chamber" x="-8" y="52" width="16" height="96" rx="2"/>
-            <rect class="pin-bar" x="-6" y="56" width="12" height="40" rx="2"/>
-          </g>
-          {% endfor %}
+    <figure class="sig" data-in aria-hidden="true">
+      <svg class="sig-svg" viewBox="0 0 440 160">
+        <!-- the signature: one continuous stroke, drawn on load -->
+        <path class="sig-stroke" id="sig-stroke" pathLength="100"
+              d="M28 108 C 40 70, 74 46, 92 62 C 108 76, 70 118, 58 104 C 48 92, 96 60, 128 66 C 160 72, 150 112, 136 112 C 118 112, 150 68, 184 70 C 214 72, 206 110, 226 100 C 248 88, 262 60, 284 70 C 304 80, 288 114, 310 104 C 334 92, 350 62, 372 72 C 392 82, 384 108, 404 100"/>
+        <!-- the line to sign on, with eight ticks that fill as a password is typed -->
+        <line class="sig-base" x1="28" y1="132" x2="412" y2="132"/>
+        <g id="sig-ticks">
+          {% for i in range(8) %}<line class="sig-tick" x1="{{ 60 + i * 46 }}" y1="128" x2="{{ 60 + i * 46 }}" y2="137"/>{% endfor %}
         </g>
+        <text class="sig-text" x="28" y="154">signed by</text>
+        <text class="sig-text sig-text--state" id="sig-state" x="412" y="154" text-anchor="end">0 of 8</text>
       </svg>
-      <figcaption class="lock-cap"><span id="lk-note">0 of 8 pins set</span></figcaption>
     </figure>
 
   </section>
