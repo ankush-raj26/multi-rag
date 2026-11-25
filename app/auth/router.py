@@ -39,9 +39,16 @@ def _set_cookie(response: Response, request: Request, token: str) -> None:
 
 
 def _page(request: Request, mode: str, **ctx: Any) -> HTMLResponse:
+    from app.deps import get_components
     from app.web import templates
 
-    return templates.TemplateResponse(request, "auth.html", {"mode": mode, **ctx})
+    components = get_components(request)
+    settings = request.app.state.settings
+    chunks = components.store.count() if components.store is not None else 0
+    documents = sum(1 for p in settings.documents_dir.glob("*") if p.suffix.lower() in settings.allowed_upload_suffixes)
+    return templates.TemplateResponse(
+        request, "auth.html", {"mode": mode, "chunks": chunks, "documents": documents, **ctx}
+    )
 
 
 def _done(request: Request, next_url: str, token: str | None = None, message: str = "") -> Response:

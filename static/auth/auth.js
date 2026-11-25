@@ -1,53 +1,89 @@
-/* The desk: panel switching, fetch-based submits with inline errors, and the signature move:
-   the key blade is re-cut from the number of characters typed, never from the characters. */
+/* The desk and the plate. Motion (window.Motion, vendored) drives: the entrance, the tab ink,
+   the panel crossfade, the lock pins settling as a password is typed, and the error shake.
+   Everything degrades: without Motion the page still works, it just does not move. */
 (() => {
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const body = document.body;
-  const errorBox = $("#desk-error");
-  const noteBox = $("#desk-note");
+  const M = window.Motion || null;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const animate = (el, keys, opts) => (M && !reduced && el ? M.animate(el, keys, opts) : null);
+  body.classList.add("js");
 
-  // ---- panels --------------------------------------------------------------
+  const errorBox = $("#desk-error"), noteBox = $("#desk-note");
+  const hide = (el) => { if (el) el.hidden = true; };
+  const say = (el, text) => { if (!el) return; el.textContent = text; el.hidden = false; animate(el, { opacity: [0, 1], y: [-4, 0] }, { duration: 0.28 }); };
+  const shake = () => animate($("#desk-card"), { x: [0, -6, 6, -4, 4, 0] }, { duration: 0.4 });
+
+  // ---- entrance -----------------------------------------------------------
+  const ins = $$("[data-in]");
+  if (M && !reduced) {
+    M.animate(ins, { opacity: [0, 1], y: [10, 0] }, { duration: 0.6, delay: M.stagger(0.07, { startDelay: 0.05 }), easing: [0.22, 1, 0.36, 1] });
+    animate($("#desk-card"), { opacity: [0, 1], y: [12, 0] }, { duration: 0.6, delay: 0.25, easing: [0.22, 1, 0.36, 1] });
+  } else ins.forEach((el) => (el.style.opacity = 1));
+
+  // ---- panels + the sliding tab ink ---------------------------------------
   const PANELS = ["signin", "signup", "forgot", "verify", "reset"];
+  const ink = $("#desk-ink");
+  function moveInk(mode) {
+    const tab = $(`.desk-tab[data-go="${mode}"]`);
+    if (!ink) return;
+    if (!tab) { ink.style.opacity = 0; return; }
+    ink.style.opacity = 1;
+    const x = tab.offsetLeft, w = tab.offsetWidth;
+    if (!animate(ink, { x, width: w }, { duration: 0.35, easing: [0.22, 1, 0.36, 1] })) { ink.style.transform = `translateX(${x}px)`; ink.style.width = `${w}px`; }
+  }
+  let current = null;
   function show(mode, push = true) {
     if (!PANELS.includes(mode)) mode = "signin";
+    const from = current && $(`.panel[data-panel="${current}"]`);
+    const to = $(`.panel[data-panel="${mode}"]`);
     body.dataset.mode = mode;
-    $$(".panel").forEach((p) => p.classList.toggle("is-on", p.dataset.panel === mode));
+    current = mode;
     $$(".desk-tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.go === mode)));
-    if (push) {
-      const url = new URL(location.href);
-      url.searchParams.set("mode", mode);
-      history.replaceState(null, "", url);
-    }
-    const first = $(`.panel[data-panel="${mode}"] input:not([type=hidden])`);
-    if (first && push) first.focus({ preventScroll: true });
+    moveInk(mode === "forgot" ? "signin" : mode);
+    const swap = () => {
+      $$(".panel").forEach((p) => p.classList.toggle("is-on", p === to));
+      animate(to, { opacity: [0, 1], x: [10, 0] }, { duration: 0.32, easing: [0.22, 1, 0.36, 1] });
+      const first = $("input:not([type=hidden])", to);
+      if (first && push) first.focus({ preventScroll: true });
+    };
+    if (from && from !== to && M && !reduced) animate(from, { opacity: [1, 0], x: [0, -10] }, { duration: 0.18 }).finished.then(swap);
+    else swap();
+    if (push) { const url = new URL(location.href); url.searchParams.set("mode", mode); history.replaceState(null, "", url); }
   }
   $$("[data-go]").forEach((el) => el.addEventListener("click", () => { hide(errorBox); hide(noteBox); show(el.dataset.go); }));
   const initial = body.dataset.mode;
   show(initial === "sent" ? "signin" : initial, false);
+  addEventListener("resize", () => moveInk(current === "forgot" ? "signin" : current));
 
-  // ---- the signature move: cut the key from the password length ------------
-  const blade = $("#lk-blade");
-  const note = $("#lk-note");
-  const MAX_CUTS = 12;
+  // ---- the lock: pins settle on the shear line as the key is cut ----------
+  const PINS = $$(".pin-bar"), blade = $("#lk-blade"), note = $("#lk-note"), state = $("#lock-state");
+  const SHEAR = 100, TOP = 56, N = PINS.length, MIN = 8, MAX_CUTS = 12;
+  // deterministic cut depths from the position only, never from the characters typed
+  const depth = (i) => 6 + ((i * 7919) % 11) * 1.4;
   function bladePath(cuts) {
-    const x0 = 70, x1 = 300, top = 48, bottom = 72, depthMax = 14;
+    const x0 = 20, x1 = 400, top = 132, bottom = 154;
     if (cuts <= 0) return `M${x0} ${top} H${x1} v${bottom - top} H${x0} z`;
-    const n = Math.min(cuts, MAX_CUTS);
-    const step = (x1 - x0 - 20) / n;
+    const n = Math.min(cuts, MAX_CUTS), step = (x1 - x0 - 24) / n;
     let d = `M${x0} ${top} H${x1} V${bottom} `;
     for (let i = n - 1; i >= 0; i--) {
-      // deterministic heights from the position only (never from the character)
-      const depth = 4 + ((i * 7919) % 11) / 10 * depthMax;
-      const xr = x0 + 20 + (i + 1) * step, xl = x0 + 20 + i * step;
-      d += `H${xr.toFixed(1)} v${-depth.toFixed(1)} H${(xl + step * 0.25).toFixed(1)} v${depth.toFixed(1)} `;
+      const dp = depth(i), xr = x0 + 24 + (i + 1) * step, xl = x0 + 24 + i * step;
+      d += `H${xr.toFixed(1)} v${-dp.toFixed(1)} H${(xl + step * 0.3).toFixed(1)} v${dp.toFixed(1)} `;
     }
     return d + `H${x0} z`;
   }
   function cut(n) {
-    if (!blade) return;
-    blade.setAttribute("d", bladePath(n));
-    if (note) note.textContent = n === 0 ? "no cuts yet" : n < 8 ? `${n} cut${n > 1 ? "s" : ""} · too few` : `${Math.min(n, MAX_CUTS)} cuts${n > MAX_CUTS ? " · deep enough" : ""}`;
+    if (blade) blade.setAttribute("d", bladePath(n));
+    const settled = Math.min(n, N);
+    PINS.forEach((pin, i) => {
+      // settled pins sit on the shear line; the rest float above it at their own height
+      const h = i < settled ? SHEAR - TOP - 2 : 28 + ((i * 37) % 5) * 3;
+      const y = i < settled ? TOP + 2 : TOP;
+      if (!animate(pin, { height: h, y }, { type: "spring", stiffness: 260, damping: 18, mass: 0.6 })) { pin.setAttribute("height", h); pin.setAttribute("y", y); }
+    });
+    if (note) note.textContent = n === 0 ? "no cuts yet" : n < MIN ? `${n} cut${n > 1 ? "s" : ""} · too few` : `${Math.min(n, MAX_CUTS)} cuts · it turns`;
+    if (state) state.textContent = n >= MIN ? "open" : "locked";
   }
   $$("input[data-cuts]").forEach((inp) => {
     inp.addEventListener("input", () => cut(inp.value.length));
@@ -55,31 +91,25 @@
   });
   cut(0);
 
-  // ---- submits: fetch, show the error inline, follow `next` -----------------
-  function hide(el) { if (el) el.hidden = true; }
-  function say(el, text) { if (!el) return; el.textContent = text; el.hidden = false; }
-
+  // ---- submits: fetch, inline errors, follow `next` --------------------------
   async function post(url, data) {
     const res = await fetch(url, { method: "POST", body: data, headers: { Accept: "application/json" }, credentials: "same-origin" });
-    let payload = {};
-    try { payload = await res.json(); } catch { payload = { ok: false, error: `Request failed (${res.status})` }; }
-    return payload;
+    try { return await res.json(); } catch { return { ok: false, error: `Request failed (${res.status})` }; }
   }
-
   $$("form.panel").forEach((form) => {
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       hide(errorBox); hide(noteBox);
-      const button = form.querySelector("button[type=submit]");
-      const label = button.textContent;
-      button.disabled = true; button.textContent = "Working…";
+      const button = form.querySelector("button[type=submit]"), label = button.querySelector("span");
+      const text = label.textContent;
+      button.disabled = true; label.textContent = "Working…";
       try {
         const out = await post(form.action, new FormData(form));
-        if (!out.ok) { say(errorBox, out.error || "Something went wrong."); return; }
+        if (!out.ok) { say(errorBox, out.error || "Something went wrong."); shake(); return; }
         if (form.dataset.panel === "forgot") { say(noteBox, out.message || "Check your inbox."); return; }
         if (out.next) {
           const url = new URL(out.next, location.origin);
-          if (url.pathname === "/auth/verify") { // stay on this page, just switch panels
+          if (url.pathname === "/auth/verify") {
             const u = url.searchParams.get("u") || "";
             $$("input[name=u]").forEach((i) => (i.value = u));
             const resend = $("#resend"); if (resend) resend.dataset.u = u;
@@ -89,19 +119,14 @@
           }
           location.href = out.next;
         }
-      } catch (e) {
-        say(errorBox, "Network problem. Try again.");
-      } finally {
-        button.disabled = false; button.textContent = label;
-      }
+      } catch { say(errorBox, "Network problem. Try again."); shake(); }
+      finally { button.disabled = false; label.textContent = text; }
     });
   });
-
   $("#resend")?.addEventListener("click", async (ev) => {
-    const u = ev.currentTarget.dataset.u;
-    if (!u) return;
+    const u = ev.currentTarget.dataset.u; if (!u) return;
     const fd = new FormData(); fd.set("u", u);
     const out = await post("/auth/resend", fd);
-    out.ok ? say(noteBox, out.message || "Sent.") : say(errorBox, out.error || "Could not resend.");
+    out.ok ? say(noteBox, out.message || "Sent.") : (say(errorBox, out.error || "Could not resend."), shake());
   });
 })();

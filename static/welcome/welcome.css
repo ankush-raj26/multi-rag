@@ -99,6 +99,7 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 
 .titleblock {
   position: fixed; right: 16px; bottom: 16px; z-index: var(--sc-z-chrome);
+  transition: opacity 260ms var(--sc-ease-out), transform 260ms var(--sc-ease-out);
   width: min(360px, calc(100vw - 32px));
   background: color-mix(in oklab, var(--sc-canvas) 94%, transparent);
   border: 1px solid var(--line); color: #EAF0F6;
@@ -337,3 +338,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 
 .tb-auth { margin-left: 14px; font: 500 11px/1 var(--sc-font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sc-accent); text-decoration: none; }
 .tb-auth:hover { text-decoration: underline; }
+
+/* the title block leaves before the white Ask sheet, where it would clash */
+.titleblock.is-away { opacity: 0; transform: translateY(12px); pointer-events: none; }

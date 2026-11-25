@@ -7,112 +7,123 @@
 <meta name="description" content="Sign in or create an account for the RAG Chatbot. Your chats, your documents, your history, kept under your name.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230D2740'/><path d='M8 9h16M8 16h16M8 23h16' stroke='%23EAF0F6' stroke-width='2'/><circle cx='16' cy='16' r='3' fill='%23FF6B45'/></svg>">
 <link rel="preload" href="{{ url_for('static', path='fonts/archivo-latin-500-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="{{ url_for('static', path='welcome/scrollcraft.css') }}?v={{ static_v('welcome/scrollcraft.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', path='auth/auth.css') }}?v={{ static_v('auth/auth.css') }}">
 </head>
-<body data-mode="{{ mode }}" class="desk-only">
+<body data-mode="{{ mode }}">
 
-<nav class="titleblock" aria-label="Page header">
-  <div class="tb-head">
-    <a class="tb-name" href="/">RAG Chatbot</a>
-    <span class="tb-meta">Access sheet · drawn to fit · scale NTS</span>
-  </div>
-  <ol class="tb-sheets">
-    <li><a href="/"><b>R-1</b> How it thinks</a></li>
-  </ol>
-</nav>
+<main class="access">
 
-<!-- The desk: the forms. -->
-<section id="desk" class="sheet sheet--print desk" aria-label="Sign in or create an account">
-  <div class="sc-wrap desk-wrap">
+  <!-- Left: the plate. The lock reacts to the password; the key is cut from it. -->
+  <section class="plate" aria-label="About this chatbot">
+    <p class="plate-label" data-in>Access · Sheet A-1</p>
+    <h1 class="plate-title" data-in>Every answer here is signed.</h1>
+    <p class="plate-lede" data-in>Your chats, your documents, your history, kept under your name. Type a password and watch the lock agree with you.</p>
 
-    <aside class="deskkey" aria-hidden="true">
-      <svg class="livekey" viewBox="0 0 320 120">
-        <path class="lk-bow" d="M18 60 a26 26 0 1 1 52 0 a26 26 0 1 1 -52 0"/>
-        <circle class="lk-hole" cx="44" cy="60" r="8"/>
-        <path class="lk-blade" id="lk-blade" d="M70 48 H300 v24 H70 z"/>
-        <text class="lk-note" id="lk-note" x="185" y="104" text-anchor="middle">no cuts yet</text>
+    <figure class="lock" data-in aria-hidden="true">
+      <svg class="lock-svg" viewBox="0 0 420 200">
+        <!-- cylinder body -->
+        <rect class="lk-body" x="20" y="40" width="380" height="120" rx="4"/>
+        <line class="lk-shear" x1="20" y1="100" x2="400" y2="100"/>
+        <text class="lk-text" x="30" y="32">shear line</text>
+        <text class="lk-text lk-text--r" x="390" y="32" text-anchor="end" id="lock-state">locked</text>
+        <!-- pins: 8 chambers; each pin is a bar that rests high and drops to the shear line as the key is cut -->
+        <g id="pins">
+          {% for i in range(8) %}
+          <g class="pin" transform="translate({{ 52 + i * 44 }} 0)">
+            <rect class="pin-chamber" x="-8" y="52" width="16" height="96" rx="2"/>
+            <rect class="pin-bar" x="-6" y="56" width="12" height="40" rx="2"/>
+          </g>
+          {% endfor %}
+        </g>
+        <!-- the key blade, drawn under the pins; re-cut from the password length -->
+        <path class="lk-key" id="lk-blade" d="M20 132 H400 v22 H20 z"/>
+        <path class="lk-bow" d="M12 143 a7 7 0 1 1 -14 0 a7 7 0 1 1 14 0"/>
       </svg>
-      <p class="deskkey-cap">The key is cut from your password's length, never its letters.</p>
-    </aside>
+      <figcaption class="lock-cap"><span id="lk-note">no cuts yet</span><span>Cut from the length of what you type, never the letters.</span></figcaption>
+    </figure>
 
+    <ul class="facts" aria-label="What you get">
+      <li data-in><b>{{ documents }}</b> documents, <b>{{ chunks }}</b> passages indexed and searchable</li>
+      <li data-in>Every answer names the file and page it came from</li>
+      <li data-in>Chats are stored under your account only</li>
+    </ul>
+  </section>
+
+  <!-- Right: the desk. -->
+  <section class="desk" aria-label="Sign in or create an account">
     <div class="desk-card" id="desk-card">
       <div class="desk-tabs" role="tablist" aria-label="What do you need">
         <button type="button" role="tab" class="desk-tab" data-go="signin" aria-selected="false" id="tab-signin">Sign in</button>
         <button type="button" role="tab" class="desk-tab" data-go="signup" aria-selected="false" id="tab-signup">Create account</button>
+        <span class="desk-ink" id="desk-ink" aria-hidden="true"></span>
       </div>
 
       <p class="desk-error" id="desk-error" role="alert" {% if not error %}hidden{% endif %}>{{ error or "" }}</p>
       <p class="desk-note" id="desk-note" role="status" {% if mode != "sent" %}hidden{% endif %}>If that address has an account, a reset link is on its way. Check your inbox and spam.</p>
 
-      <!-- SIGN IN -->
-      <form class="panel" data-panel="signin" method="post" action="/auth/signin" autocomplete="on">
-        <h2 class="panel-title">Present your key</h2>
-        <label class="field"><span>E-mail</span>
-          <input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder="you@company.com"></label>
-        <label class="field"><span>Password</span>
-          <input name="password" type="password" required autocomplete="current-password" data-cuts placeholder="••••••••"></label>
-        <div class="panel-actions">
-          <button class="kbtn kbtn--primary" type="submit">Sign in</button>
-          <button type="button" class="kbtn kbtn--link" data-go="forgot">Forgot it?</button>
-        </div>
-      </form>
+      <div class="panels" id="panels">
+        <!-- SIGN IN -->
+        <form class="panel" data-panel="signin" method="post" action="/auth/signin" autocomplete="on">
+          <h2 class="panel-title">Present your key</h2>
+          <label class="field"><input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder=" "><span>E-mail</span><i></i></label>
+          <label class="field"><input name="password" type="password" required autocomplete="current-password" data-cuts placeholder=" "><span>Password</span><i></i></label>
+          <div class="panel-actions">
+            <button class="kbtn kbtn--primary" type="submit"><span>Sign in</span></button>
+            <button type="button" class="kbtn kbtn--link" data-go="forgot">Forgot it?</button>
+          </div>
+        </form>
 
-      <!-- SIGN UP -->
-      <form class="panel" data-panel="signup" method="post" action="/auth/signup" autocomplete="on">
-        <h2 class="panel-title">Cut a new key</h2>
-        <label class="field"><span>Name</span>
-          <input name="name" type="text" autocomplete="name" value="{{ name or '' }}" placeholder="What should we call you"></label>
-        <label class="field"><span>E-mail</span>
-          <input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder="you@company.com"></label>
-        <label class="field"><span>Password</span>
-          <input name="password" type="password" required minlength="8" autocomplete="new-password" data-cuts placeholder="At least 8 characters"></label>
-        <p class="field-hint">A 6-digit code goes to that address. The account opens when you enter it.</p>
-        <div class="panel-actions">
-          <button class="kbtn kbtn--primary" type="submit">Send my code</button>
-        </div>
-      </form>
+        <!-- SIGN UP -->
+        <form class="panel" data-panel="signup" method="post" action="/auth/signup" autocomplete="on">
+          <h2 class="panel-title">Cut a new key</h2>
+          <label class="field"><input name="name" type="text" autocomplete="name" value="{{ name or '' }}" placeholder=" "><span>Name</span><i></i></label>
+          <label class="field"><input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder=" "><span>E-mail</span><i></i></label>
+          <label class="field"><input name="password" type="password" required minlength="8" autocomplete="new-password" data-cuts placeholder=" "><span>Password, 8 or more</span><i></i></label>
+          <p class="field-hint">A 6-digit code goes to that address. The account opens when you enter it.</p>
+          <div class="panel-actions">
+            <button class="kbtn kbtn--primary" type="submit"><span>Send my code</span></button>
+          </div>
+        </form>
 
-      <!-- FORGOT -->
-      <form class="panel" data-panel="forgot" method="post" action="/auth/forgot" autocomplete="on">
-        <h2 class="panel-title">Reissue a key</h2>
-        <p class="field-hint">Enter your e-mail and we send a one-time link. It works for 30 minutes.</p>
-        <label class="field"><span>E-mail</span>
-          <input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder="you@company.com"></label>
-        <div class="panel-actions">
-          <button class="kbtn kbtn--primary" type="submit">Send reset link</button>
-          <button type="button" class="kbtn kbtn--link" data-go="signin">Back to sign in</button>
-        </div>
-      </form>
+        <!-- FORGOT -->
+        <form class="panel" data-panel="forgot" method="post" action="/auth/forgot" autocomplete="on">
+          <h2 class="panel-title">Reissue a key</h2>
+          <p class="field-hint">Enter your e-mail and we send a one-time link. It works for 30 minutes.</p>
+          <label class="field"><input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder=" "><span>E-mail</span><i></i></label>
+          <div class="panel-actions">
+            <button class="kbtn kbtn--primary" type="submit"><span>Send reset link</span></button>
+            <button type="button" class="kbtn kbtn--link" data-go="signin">Back to sign in</button>
+          </div>
+        </form>
 
-      <!-- VERIFY -->
-      <form class="panel" data-panel="verify" method="post" action="/auth/verify" autocomplete="off">
-        <h2 class="panel-title">Confirm your e-mail</h2>
-        <p class="field-hint">We sent a 6-digit code. It expires in 15 minutes.</p>
-        <input type="hidden" name="u" value="{{ user_id or '' }}">
-        <label class="field"><span>Code</span>
-          <input name="code" class="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code" placeholder="000000"></label>
-        <div class="panel-actions">
-          <button class="kbtn kbtn--primary" type="submit">Open my account</button>
-          <button type="button" class="kbtn kbtn--link" id="resend" data-u="{{ user_id or '' }}">Send a new code</button>
-        </div>
-      </form>
+        <!-- VERIFY -->
+        <form class="panel" data-panel="verify" method="post" action="/auth/verify" autocomplete="off">
+          <h2 class="panel-title">Confirm your e-mail</h2>
+          <p class="field-hint">We sent a 6-digit code. It expires in 15 minutes.</p>
+          <input type="hidden" name="u" value="{{ user_id or '' }}">
+          <label class="field field--code"><input name="code" class="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code" placeholder=" "><span>Code</span><i></i></label>
+          <div class="panel-actions">
+            <button class="kbtn kbtn--primary" type="submit"><span>Open my account</span></button>
+            <button type="button" class="kbtn kbtn--link" id="resend" data-u="{{ user_id or '' }}">Send a new code</button>
+          </div>
+        </form>
 
-      <!-- RESET -->
-      <form class="panel" data-panel="reset" method="post" action="/auth/reset" autocomplete="on">
-        <h2 class="panel-title">Choose a new password</h2>
-        <input type="hidden" name="token" value="{{ token or '' }}">
-        <label class="field"><span>New password</span>
-          <input name="password" type="password" required minlength="8" autocomplete="new-password" data-cuts placeholder="At least 8 characters"></label>
-        <div class="panel-actions">
-          <button class="kbtn kbtn--primary" type="submit">Save and sign in</button>
-        </div>
-      </form>
+        <!-- RESET -->
+        <form class="panel" data-panel="reset" method="post" action="/auth/reset" autocomplete="on">
+          <h2 class="panel-title">Choose a new password</h2>
+          <input type="hidden" name="token" value="{{ token or '' }}">
+          <label class="field"><input name="password" type="password" required minlength="8" autocomplete="new-password" data-cuts placeholder=" "><span>New password, 8 or more</span><i></i></label>
+          <div class="panel-actions">
+            <button class="kbtn kbtn--primary" type="submit"><span>Save and sign in</span></button>
+          </div>
+        </form>
+      </div>
     </div>
-  </div>
+    <a class="desk-back" href="/">See how the bot thinks first</a>
+  </section>
+</main>
 
-</section>
-
+<script src="{{ url_for('static', path='vendor/motion.min.js') }}?v={{ static_v('vendor/motion.min.js') }}"></script>
 <script src="{{ url_for('static', path='auth/auth.js') }}?v={{ static_v('auth/auth.js') }}" defer></script>
 </body>
 </html>

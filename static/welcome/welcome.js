@@ -469,6 +469,7 @@ const io = new IntersectionObserver((entries) => {
     Object.values(sheetLinks).forEach((a) => { a.classList.remove("is-current"); a.removeAttribute("aria-current"); });
     const a = sheetLinks[en.target.id];
     if (a) { a.classList.add("is-current"); a.setAttribute("aria-current", "location"); }
+    $(".titleblock")?.classList.toggle("is-away", en.target.id === "ask");
   }
 }, { rootMargin: "-45% 0px -50% 0px" });
 $$("main > section").forEach((s) => io.observe(s));
