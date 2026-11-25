@@ -20,6 +20,11 @@ from psycopg_pool import ConnectionPool
 from app.models import Chunk, RetrievedChunk
 
 
+def _clean(text: str) -> str:
+    """Postgres text cannot hold NUL bytes; PDFs sometimes carry them."""
+    return text.replace("\x00", "")
+
+
 def _floats(value: Any) -> list[float]:
     """pgvector hands back a numpy array or a `Vector`, depending on the adapter: normalise."""
     if hasattr(value, "to_list"):
@@ -66,7 +71,7 @@ class PgVectorStore:
                             chunk.doc_id,
                             chunk.source,
                             chunk.position,
-                            chunk.text,
+                            _clean(chunk.text),
                             Jsonb(chunk.metadata),
                             np.asarray(vector, dtype="float32"),
                         ),
