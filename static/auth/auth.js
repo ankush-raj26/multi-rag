@@ -61,19 +61,24 @@
   show(initial === "sent" ? "signin" : initial, false);
   addEventListener("resize", () => moveInk(current === "forgot" ? "signin" : current));
 
-  // ---- the signature: drawn on load; the ticks fill as a password is typed -----
-  const ticks = $$(".sig-tick"), state = $("#sig-state");
-  const MIN = 8;
+  // ---- the key: its blade is re-cut from the password length, never from the letters ----
+  const blade = $("#lk-blade"), note = $("#lk-note");
+  const MIN = 8, MAX_CUTS = 12;
+  function bladePath(cuts) {
+    const x0 = 70, x1 = 300, top = 48, bottom = 72, depthMax = 14;
+    if (cuts <= 0) return `M${x0} ${top} H${x1} v${bottom - top} H${x0} z`;
+    const n = Math.min(cuts, MAX_CUTS), step = (x1 - x0 - 20) / n;
+    let d = `M${x0} ${top} H${x1} V${bottom} `;
+    for (let i = n - 1; i >= 0; i--) {
+      const depth = 4 + (((i * 7919) % 11) / 10) * depthMax;   // position-based, not character-based
+      const xr = x0 + 20 + (i + 1) * step, xl = x0 + 20 + i * step;
+      d += `H${xr.toFixed(1)} v${-depth.toFixed(1)} H${(xl + step * 0.25).toFixed(1)} v${depth.toFixed(1)} `;
+    }
+    return d + `H${x0} z`;
+  }
   function cut(n) {
-    const set = Math.min(n, ticks.length);
-    ticks.forEach((t, i) => {
-      const on = i < set;
-      if (on !== t.classList.contains("is-on")) {
-        t.classList.toggle("is-on", on);
-        if (on) animate(t, { y2: [128, 137], opacity: [0.4, 1] }, { duration: 0.3, easing: [0.22, 1, 0.36, 1] });
-      }
-    });
-    if (state) state.textContent = n >= MIN ? "signed" : `${set} of ${ticks.length}`;
+    if (blade) blade.setAttribute("d", bladePath(n));
+    if (note) note.textContent = n === 0 ? "no cuts yet" : n < MIN ? `${n} cut${n > 1 ? "s" : ""} · too few` : `${Math.min(n, MAX_CUTS)} cuts${n > MAX_CUTS ? " · deep enough" : ""}`;
   }
   $$("input[data-cuts]").forEach((inp) => {
     inp.addEventListener("input", () => cut(inp.value.length));

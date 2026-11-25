@@ -15,23 +15,17 @@
 
   <!-- Left: the plate. The lock reacts to the password; the key is cut from it. -->
   <section class="plate" aria-label="About this chatbot">
-    <p class="plate-label" data-in>Access · Sheet A-1</p>
     <h1 class="plate-title" data-in>Every answer here is signed.</h1>
-    <p class="plate-lede" data-in>Your chats, your documents, your history, kept under your name. Pick a password and sign for it.</p>
+    <p class="plate-lede" data-in>Your chats, your documents, your history, kept under your name. Type a password and watch the key get cut.</p>
 
-    <figure class="sig" data-in aria-hidden="true">
-      <svg class="sig-svg" viewBox="0 0 440 160">
-        <!-- the signature: one continuous stroke, drawn on load -->
-        <path class="sig-stroke" id="sig-stroke" pathLength="100"
-              d="M28 108 C 40 70, 74 46, 92 62 C 108 76, 70 118, 58 104 C 48 92, 96 60, 128 66 C 160 72, 150 112, 136 112 C 118 112, 150 68, 184 70 C 214 72, 206 110, 226 100 C 248 88, 262 60, 284 70 C 304 80, 288 114, 310 104 C 334 92, 350 62, 372 72 C 392 82, 384 108, 404 100"/>
-        <!-- the line to sign on, with eight ticks that fill as a password is typed -->
-        <line class="sig-base" x1="28" y1="132" x2="412" y2="132"/>
-        <g id="sig-ticks">
-          {% for i in range(8) %}<line class="sig-tick" x1="{{ 60 + i * 46 }}" y1="128" x2="{{ 60 + i * 46 }}" y2="137"/>{% endfor %}
-        </g>
-        <text class="sig-text" x="28" y="154">signed by</text>
-        <text class="sig-text sig-text--state" id="sig-state" x="412" y="154" text-anchor="end">0 of 8</text>
+    <figure class="livekey-wrap" data-in aria-hidden="true">
+      <svg class="livekey" viewBox="0 0 320 120">
+        <path class="lk-bow" d="M18 60 a26 26 0 1 1 52 0 a26 26 0 1 1 -52 0"/>
+        <circle class="lk-hole" cx="44" cy="60" r="8"/>
+        <path class="lk-blade" id="lk-blade" d="M70 48 H300 v24 H70 z"/>
+        <text class="lk-note" id="lk-note" x="185" y="104" text-anchor="middle">no cuts yet</text>
       </svg>
+      <figcaption class="livekey-cap">The key is cut from your password's length, never its letters.</figcaption>
     </figure>
 
   </section>
