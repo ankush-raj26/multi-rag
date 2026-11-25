@@ -30,7 +30,7 @@
 
 <nav class="titleblock" aria-label="Drawing sheets">
   <div class="tb-head">
-    <a class="tb-name" href="/">RAG Chatbot</a>
+    <a class="tb-name" href="/">RAG Chatbot</a>{% if auth and not user %}<a class="tb-auth" href="/auth">Sign in</a>{% endif %}
     <span class="tb-meta">Routing assembly · drawn by spytro · scale NTS</span>
   </div>
   <ol class="tb-sheets">
@@ -262,12 +262,12 @@
         <p class="ask__body">Same router, same documents{% if chunks %} ({{ chunks }} chunks indexed){% endif %}, a real model behind it. The answer shows which route it took and where it found it.</p>
         {% if documents %}<p class="ask__docs">Indexed from: {% for d in documents %}<a href="{{ url_for('serve_document', name=d) }}" target="_blank" rel="noopener">{{ d }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
       </div>
-      <form class="askform" id="askform" method="post" action="/ui/start">
+      <form class="askform" id="askform" method="post" action="/ui/start" {% if auth and not user %}data-needs-account="/auth?mode=signup"{% endif %}>
         <label for="ask-q" class="qform__label">Message</label>
         <textarea id="ask-q" name="content" rows="3" maxlength="8000" required>How many annual leave days do I get?</textarea>
         <div class="askform__row">
           <button type="submit" class="askform__go">Ask the bot</button>
-          <a class="askform__alt" href="/">Open the full chat</a>
+          <a class="askform__alt" href="{% if auth and not user %}/auth?mode=signup{% else %}/{% endif %}">{% if auth and not user %}Create an account{% else %}Open the full chat{% endif %}</a>
         </div>
         <div class="answer" id="answer" aria-live="polite" hidden>
           <p class="answer__route" id="answer-route"></p>

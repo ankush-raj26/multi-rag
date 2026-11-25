@@ -425,12 +425,14 @@ askForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const content = $("#ask-q").value.trim();
   if (!content) return;
+  if (askForm.dataset.needsAccount) { location.href = askForm.dataset.needsAccount; return; }
   const btn = askForm.querySelector(".askform__go");
   const box = $("#answer"), routeEl = $("#answer-route"), text = $("#answer-text"), srcs = $("#answer-sources"), more = $("#answer-more");
   btn.disabled = true; btn.textContent = "Asking…";
   box.hidden = false; routeEl.textContent = ""; text.textContent = "Thinking…"; srcs.replaceChildren();
   try {
     const s = await fetch("/api/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (s.status === 401) { location.href = "/auth?mode=signup"; return; }
     if (!s.ok) throw new Error(`could not start a chat (${s.status})`);
     const session = await s.json();
     const r = await fetch(`/api/sessions/${session.id}/messages`, {

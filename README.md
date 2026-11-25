@@ -47,8 +47,18 @@ Set `BREVO_API_KEY` in `.env` (Brevo → SMTP & API → API keys). Without it th
 the code is printed to the terminal running the server instead of being e-mailed.
 `BREVO_SENDER_EMAIL` is optional; the first verified sender on the Brevo account is used.
 
-Ports: Postgres on `127.0.0.1:5434`, Redis on `127.0.0.1:6380` (not the defaults, so other local
-projects are never touched). Credentials are in `docker-compose.yml` and `.env.example`.
+### Uploaded documents (media) in S3
+
+Uploads are stored in an S3 bucket; `data/documents/` is a local cache of it. Locally the bucket is
+MinIO (started by `docker compose`, console at <http://127.0.0.1:9011>, user `rag` / `ragragrag`).
+For AWS S3, Cloudflare R2 or any S3 API, change `S3_BUCKET`, `S3_ENDPOINT_URL`, `S3_REGION` and the
+keys in `.env`. At start-up and before indexing the folder and the bucket are synced both ways, so
+the bundled sample documents end up in the bucket and a teammate pointing at the same bucket gets
+every upload. Leave `S3_BUCKET` empty to keep files only on disk.
+
+Ports: Postgres on `127.0.0.1:5434`, Redis on `127.0.0.1:6380`, MinIO on `127.0.0.1:9010` / `9011`
+(not the defaults, so other local projects are never touched). Credentials are in `docker-compose.yml`
+and `.env.example`.
 
 ### Running without Docker
 
@@ -98,6 +108,7 @@ app/
   auth/           accounts: Brevo e-mail, rules (service.py), /auth pages (router.py)
   db/             Postgres pool + SQL migrations, Redis key-value, `python -m app.db check|migrate`
   storage/        chat sessions: pg_store.py (Postgres, per user) or json_store.py (no-Docker mode)
+  storage/blob.py uploaded documents in S3 (MinIO locally), data/documents/ as the cache
   vectordb/pg_store.py   vectors + keyword search in Postgres (pgvector + tsvector)
   chat/llm.py            M1  get_llm
   chat/engine.py         M1, M7, M8  LangGraph engine
@@ -111,7 +122,7 @@ app/
 data/documents/  sample documents      data/sessions/  chat history (JSON)
 tests/           plumbing tests + tests/contract (one file per milestone)
 templates/, static/   the server-rendered UI (templates/auth.html + static/auth/ = the access page)
-docker-compose.yml    Postgres (pgvector) + Redis for local development
+docker-compose.yml    Postgres (pgvector) + Redis + MinIO for local development
 ```
 
 Models in `app/models.py` are the contract between your modules and the trainer's evaluator — don't rename fields.

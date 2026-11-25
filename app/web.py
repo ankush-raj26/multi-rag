@@ -96,6 +96,8 @@ def home(
     store: SessionStore = Depends(get_store),
     components: Components = Depends(get_components),
 ) -> Response:
+    if request.app.state.auth is not None and getattr(request.state, "user", None) is None:
+        return welcome(request, components)  # visitors land on the scroll page; the chat is behind sign-in
     sessions = store.list()
     if sessions:
         return RedirectResponse(f"/sessions/{sessions[0].id}", status_code=status.HTTP_303_SEE_OTHER)
@@ -125,6 +127,8 @@ def welcome(request: Request, components: Components = Depends(get_components)) 
                 p.name for p in settings.documents_dir.glob("*") if p.suffix.lower() in settings.allowed_upload_suffixes
             ),
             "ready": not components.missing,
+            "user": getattr(request.state, "user", None),
+            "auth": request.app.state.auth is not None,
         },
     )
 
@@ -149,8 +153,15 @@ def serve_document(name: str, request: Request) -> FileResponse:
     settings: Settings = request.app.state.settings
     safe = Path(name).name
     path = settings.documents_dir / safe
-    if not path.exists() or path.suffix.lower() not in settings.allowed_upload_suffixes:
+    if path.suffix.lower() not in settings.allowed_upload_suffixes:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    if not path.exists():  # cache miss: fetch from the bucket
+        blob = getattr(request.app.state.components, "blob", None) if request.app.state.components else None
+        data = blob.get(safe) if blob is not None else None
+        if data is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
     return FileResponse(path, headers={"Content-Disposition": "inline"})
 
 

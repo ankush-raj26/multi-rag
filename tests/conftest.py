@@ -25,6 +25,7 @@ def settings(tmp_path: Path) -> Settings:
         database_url="",
         redis_url="",
         vector_backend="json",
+        s3_bucket="",
     )
 
 

@@ -17,7 +17,6 @@
     if (push) {
       const url = new URL(location.href);
       url.searchParams.set("mode", mode);
-      url.hash = "desk";
       history.replaceState(null, "", url);
     }
     const first = $(`.panel[data-panel="${mode}"] input:not([type=hidden])`);
@@ -26,7 +25,6 @@
   $$("[data-go]").forEach((el) => el.addEventListener("click", () => { hide(errorBox); hide(noteBox); show(el.dataset.go); }));
   const initial = body.dataset.mode;
   show(initial === "sent" ? "signin" : initial, false);
-  if (initial !== "signin") setTimeout(() => $("#desk")?.scrollIntoView({ behavior: "auto", block: "start" }), 50);
 
   // ---- the signature move: cut the key from the password length ------------
   const blade = $("#lk-blade");

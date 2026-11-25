@@ -334,3 +334,6 @@ code { font-family: var(--sc-font-mono); font-size: 0.86em; }
 @media (max-width: 860px) and (max-height: 700px) {
   .hero__sub { display: none; }
 }
+
+.tb-auth { margin-left: 14px; font: 500 11px/1 var(--sc-font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--sc-accent); text-decoration: none; }
+.tb-auth:hover { text-decoration: underline; }

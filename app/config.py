@@ -57,6 +57,13 @@ class Settings:
     brevo_sender_name: str = "RAG Chatbot"
     app_base_url: str = "http://127.0.0.1:8000"
     session_ttl_days: int = 14
+    # --- media (uploaded documents) in an S3 bucket; empty bucket = local folder only ---
+    s3_bucket: str = ""
+    s3_prefix: str = "documents"
+    s3_endpoint_url: str = ""
+    s3_region: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
 
     @property
     def auth_enabled(self) -> bool:
@@ -104,6 +111,12 @@ def load_settings() -> Settings:
         brevo_sender_name=os.getenv("BREVO_SENDER_NAME", "RAG Chatbot"),
         app_base_url=os.getenv("APP_BASE_URL", "http://127.0.0.1:8000").rstrip("/"),
         session_ttl_days=_env_int("SESSION_TTL_DAYS", 14),
+        s3_bucket=os.getenv("S3_BUCKET", ""),
+        s3_prefix=os.getenv("S3_PREFIX", "documents"),
+        s3_endpoint_url=os.getenv("S3_ENDPOINT_URL", ""),
+        s3_region=os.getenv("S3_REGION", ""),
+        s3_access_key_id=os.getenv("S3_ACCESS_KEY_ID", "") or os.getenv("AWS_ACCESS_KEY_ID", ""),
+        s3_secret_access_key=os.getenv("S3_SECRET_ACCESS_KEY", "") or os.getenv("AWS_SECRET_ACCESS_KEY", ""),
     )
 
 

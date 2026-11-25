@@ -33,6 +33,7 @@ class Components:
     embedder: Embedder | None = None
     store: VectorStore | None = None
     retriever: Retriever | None = None
+    blob: Any = None
     missing: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -63,12 +64,18 @@ def build_components(settings: Any | None = None) -> Components:
     if store is not None and embedder is not None:
         retriever = _try("retriever", get_retriever, missing, store=store, embedder=embedder)
     engine = _try("engine", get_engine, missing, retriever=retriever, embedder=embedder)
+    blob = None
+    if settings is not None and settings.s3_bucket:
+        from app.storage.blob import get_blob_store
+
+        blob = _try("blob_store", get_blob_store, missing, settings=settings)
     return Components(
         engine=engine or PlaceholderEngine(),
         chunker=chunker,
         embedder=embedder,
         store=store,
         retriever=retriever,
+        blob=blob,
         missing=missing,
     )
 

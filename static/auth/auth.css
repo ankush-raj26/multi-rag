@@ -1,5 +1,5 @@
-/* Access sheet: same drawing-office world as the welcome page (navy canvas, grid paper,
-   mono tags, one warm accent). Two sheets: A-1 the key draws itself on scroll, A-2 the desk. */
+/* Access sheet: same drawing-office world as the welcome page (grid paper, mono tags, one warm
+   accent). One sheet: the desk, with a live key that is re-cut from the password length. */
 @font-face { font-family: "Archivo"; font-weight: 400; font-display: swap; src: url("../fonts/archivo-latin-400-normal.woff2") format("woff2"); }
 @font-face { font-family: "Archivo"; font-weight: 500; font-display: swap; src: url("../fonts/archivo-latin-500-normal.woff2") format("woff2"); }
 @font-face { font-family: "Archivo"; font-weight: 600; font-display: swap; src: url("../fonts/archivo-latin-600-normal.woff2") format("woff2"); }
@@ -23,8 +23,9 @@
 }
 
 body { line-height: 1.6; }
+body.desk-only { background: #EEF2F6; }
 
-/* grid paper behind everything, like the welcome sheet */
+/* (unused on the desk-only page, kept for the grid tokens) */
 .paper {
   position: fixed; inset: -60px 0; z-index: 0; pointer-events: none;
   background:
@@ -53,29 +54,6 @@ body { line-height: 1.6; }
 
 .sheet { position: relative; z-index: 5; }
 .sheet--clear { background: transparent; z-index: 4; }
-
-/* ----- A-1: the key draws itself. --sc-p is published by the engine on the act. ----- */
-.keystage { display: grid; place-items: center; }
-.keydraw {
-  width: min(78vw, 820px); margin-top: -6vh;
-  --p: var(--sc-p, 0);
-}
-.kd-grid line { stroke: var(--line-faint); stroke-width: 1; }
-.kd-outline, .kd-bow {
-  fill: none; stroke: var(--sc-ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round;
-  stroke-dasharray: 1; stroke-dashoffset: calc(1 - min(1, var(--p) * 1.25));
-}
-.kd-bow { stroke: var(--sc-accent); stroke-dashoffset: calc(1 - max(0, (var(--p) - 0.75) * 4)); }
-.kd-dims { opacity: calc(max(0, (var(--p) - 0.55) * 2.5)); }
-.kd-dims line { stroke: var(--sc-ink-soft); stroke-width: 1; stroke-dasharray: 4 4; }
-.kd-dims text { fill: var(--sc-ink-soft); font: 500 11px var(--sc-font-mono); letter-spacing: .08em; text-transform: uppercase; }
-.keycopy { max-width: 36rem; }
-.keycopy .sc-lede { max-width: 32rem; }
-.keycopy-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: var(--sc-5); }
-@media (max-width: 860px) {
-  .keydraw { width: 92vw; margin-top: -28vh; }
-  .keycopy { bottom: clamp(2rem, 8vh, 5rem); }
-}
 
 /* buttons */
 .kbtn {
@@ -124,7 +102,7 @@ body { line-height: 1.6; }
   position: relative; min-width: 0;
 }
 .desk-card::before {
-  content: "A-2 · DESK"; position: absolute; top: -1px; right: -1px; padding: 4px 8px;
+  content: "A-1 · DESK"; position: absolute; top: -1px; right: -1px; padding: 4px 8px;
   font: 500 10px/1 var(--sc-font-mono); letter-spacing: .1em; color: var(--sc-accent-ink); background: var(--sc-accent);
 }
 .desk-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); margin-bottom: var(--sc-4); }
@@ -153,8 +131,4 @@ body[data-mode="verify"] .desk-tabs, body[data-mode="reset"] .desk-tabs { displa
 
 .desk-foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font: 500 11px/1.6 var(--sc-font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--sc-ink-soft); }
 
-@media (prefers-reduced-motion: reduce) {
-  .kd-outline, .kd-bow { stroke-dashoffset: 0; }
-  .kd-dims { opacity: 1; }
-  .lk-blade { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .lk-blade { transition: none; } }

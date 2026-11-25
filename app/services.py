@@ -145,6 +145,9 @@ def save_and_index_upload(settings: Settings, components: Components, filename: 
     settings.documents_dir.mkdir(parents=True, exist_ok=True)
     path = settings.documents_dir / safe_name
     path.write_bytes(data)
+    blob = getattr(components, "blob", None)
+    if blob is not None:
+        blob.put(safe_name, data)  # the bucket is the source of truth; the folder is its cache
 
     if not components.can_index:
         missing = ", ".join(sorted(k for k in ("chunker", "embedder", "vector_store") if k in components.missing))

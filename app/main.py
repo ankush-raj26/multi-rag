@@ -31,6 +31,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.components = None
     application.state.tracing_enabled = configure_tracing()
     application.state.auth = _build_auth(settings)
+    if settings.s3_bucket:
+        _sync_media(settings)
 
     if application.state.auth is not None:
         application.middleware("http")(_require_login)
@@ -71,15 +73,33 @@ def _build_auth(settings: Settings):  # type: ignore[no-untyped-def]
 
 # Paths anyone may open without an account. Everything else needs a login cookie.
 PUBLIC_PREFIXES = ("/auth", "/static/", "/health", "/welcome", "/api/route", "/docs", "/openapi.json", "/redoc")
+PUBLIC_PATHS = ("/",)
+
+
+def _sync_media(settings: Settings) -> None:
+    """Mirror the S3 bucket into the documents folder (and push bundled samples up) at start-up."""
+    from app.storage.blob import S3BlobStore, sync_documents
+
+    try:
+        blob = S3BlobStore.from_settings(settings)
+        blob.ensure_bucket()
+        sync_documents(settings, blob)
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).exception("Could not sync documents with the bucket (S3_* in .env)")
 
 
 async def _require_login(request: Request, call_next):  # type: ignore[no-untyped-def]
     auth = request.app.state.auth
     request.state.user = auth.user_for_token(request.cookies.get(COOKIE))
     path = request.url.path
-    if request.state.user is None and not any(path == p.rstrip("/") or path.startswith(p) for p in PUBLIC_PREFIXES):
+    public = path in PUBLIC_PATHS or any(path == p.rstrip("/") or path.startswith(p) for p in PUBLIC_PREFIXES)
+    if request.state.user is None and not public:
         if path.startswith("/api/") or request.headers.get("HX-Request"):
-            return JSONResponse({"detail": "Sign in required"}, status_code=401, headers={"HX-Redirect": "/auth"})
+            return JSONResponse(
+                {"detail": "Sign in required"}, status_code=401, headers={"HX-Redirect": "/auth?mode=signup"}
+            )
+        if request.method != "GET":  # e.g. "Ask the bot" on the welcome page without an account
+            return RedirectResponse("/auth?mode=signup", status_code=303)
         return RedirectResponse(f"/auth?next={path}", status_code=303)
     return await call_next(request)
 

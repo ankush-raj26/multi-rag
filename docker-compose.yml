@@ -1,9 +1,9 @@
-# Local infrastructure for the RAG chatbot: Postgres (with pgvector) + Redis.
+# Local infrastructure for the RAG chatbot: Postgres (with pgvector) + Redis + MinIO (S3-compatible media storage).
 #   docker compose up -d        start both (data survives restarts in named volumes)
 #   docker compose down         stop both (keeps data)
 #   docker compose down -v      stop both and DELETE the data
 # Ports are bound to 127.0.0.1 only and chosen not to clash with other projects
-# (5434 / 6380 instead of the defaults 5432 / 6379).
+# (5434 / 6380 / 9010 instead of the defaults 5432 / 6379 / 9000).
 name: rag-chatbot
 
 services:
@@ -40,6 +40,26 @@ services:
       retries: 20
     restart: unless-stopped
 
+  minio:
+    image: quay.io/minio/minio:latest   # quay mirror: pulls without a Docker Hub login
+    container_name: rag-chatbot-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: rag
+      MINIO_ROOT_PASSWORD: ragragrag
+    ports:
+      - "127.0.0.1:9010:9000"   # S3 API
+      - "127.0.0.1:9011:9001"   # web console (user rag / ragragrag)
+    volumes:
+      - rag_chatbot_minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
 volumes:
   rag_chatbot_pgdata:
   rag_chatbot_redis:
+  rag_chatbot_minio:

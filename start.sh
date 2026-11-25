@@ -7,13 +7,13 @@
 #
 # What it does, in order:
 #   1. tool check        uv and docker must exist
-#   2. infrastructure    docker compose up -d (Postgres+pgvector, Redis); waits until both are healthy
+#   2. infrastructure    docker compose up -d (Postgres+pgvector, Redis, MinIO); waits until all are healthy
 #   3. python deps       uv sync
 #   4. .env              created from .env.example if missing (then you add keys)
 #   5. database          applies SQL migrations (idempotent)
 #   6. health check      python -m app.db check  -> JSON; aborts with a clear message if something is down
 #   7. keys              scripts/check_setup.py --fix (unless --no-check)
-#   8. documents         indexes data/documents only when the vector table is empty
+#   8. documents         syncs the S3 bucket <-> data/documents, indexes only when the vector table is empty
 #   9. app               uvicorn on http://127.0.0.1:8000
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -32,7 +32,7 @@ if [[ "${1:-}" == "--reset" ]]; then
   shift || true
 fi
 
-say "1/7 Infrastructure: Postgres (pgvector) + Redis"
+say "1/7 Infrastructure: Postgres (pgvector) + Redis + MinIO (S3)"
 docker compose up -d --wait --wait-timeout 90 || fail "Containers did not become healthy. Run: docker compose logs"
 
 say "2/7 Python dependencies (uv sync)"
@@ -52,6 +52,7 @@ REPORT="$(uv run python -m app.db check)"
 echo "    $REPORT"
 echo "$REPORT" | grep -q '"postgres": true' || fail "Postgres is not reachable at DATABASE_URL. Check .env and: docker compose ps"
 echo "$REPORT" | grep -q '"redis": true'    || fail "Redis is not reachable at REDIS_URL. Check .env and: docker compose ps"
+echo "$REPORT" | grep -q '"s3": "ok"'       || echo "    note: S3 media storage is not reachable (see S3_* in .env); uploads stay in data/documents only."
 echo "$REPORT" | grep -q '"brevo": "ok"'    || echo "    note: e-mail is not fully configured (see BREVO_* in .env); codes will be printed to this terminal instead."
 
 if [[ "${1:-}" != "--no-check" ]]; then
@@ -70,5 +71,5 @@ else
 fi
 
 say "7/7 Starting the app on http://127.0.0.1:8000  (Ctrl+C to stop; containers keep running)"
-( sleep 3; open "http://127.0.0.1:8000/auth" 2>/dev/null || xdg-open "http://127.0.0.1:8000/auth" 2>/dev/null || true ) &
+( sleep 3; open "http://127.0.0.1:8000/" 2>/dev/null || xdg-open "http://127.0.0.1:8000/" 2>/dev/null || true ) &
 exec uv run uvicorn app.main:app --reload

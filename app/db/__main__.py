@@ -22,6 +22,7 @@ def _check() -> dict[str, object]:
         "migrated": False,
         "chunks": 0,
         "brevo": "unset",
+        "s3": "unset",
     }
     if settings.database_url:
         from app.db.pg import chunk_count, get_pool, ping
@@ -39,6 +40,10 @@ def _check() -> dict[str, object]:
         from app.db.kv import RedisKV
 
         report["redis"] = RedisKV(settings.redis_url).ping()
+    if settings.s3_bucket:
+        from app.storage.blob import S3BlobStore
+
+        report["s3"] = S3BlobStore.from_settings(settings).ping()
     if settings.brevo_api_key:
         from app.auth.email import BrevoMailer
 
