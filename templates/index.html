@@ -76,6 +76,13 @@
     {% endif %}
 
     <a class="tour-link" href="/welcome">How the router works {{ icon("external", 14) }}</a>
+    {% if user %}
+    <div class="account">
+      <span class="account-avatar" aria-hidden="true">{{ (user.name or user.email)[:1]|upper }}</span>
+      <span class="account-text"><b>{{ user.name or user.email.split("@")[0] }}</b><small>{{ user.email }}</small></span>
+      <form method="post" action="/auth/logout"><button class="icon-btn" type="submit" title="Sign out" aria-label="Sign out">{{ icon("x") }}</button></form>
+    </div>
+    {% endif %}
   </aside>
   <div class="scrim" data-toggle="sidebar" hidden></div>
 

@@ -22,6 +22,9 @@ def settings(tmp_path: Path) -> Settings:
         sessions_dir=tmp_path / "sessions",
         documents_dir=tmp_path / "documents",
         vector_dir=tmp_path / "vectorstore",
+        database_url="",
+        redis_url="",
+        vector_backend="json",
     )
 
 

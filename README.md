@@ -14,22 +14,47 @@ brew install uv
 
 `uv` installs Python 3.12 and every dependency for you. No separate `pip` or `venv` steps.
 
-## 2. Set up the project
+## 2. Set up and run (one command)
+
+You also need Docker Desktop running: chat history, accounts and the vector index live in Postgres,
+and login sessions / e-mail codes live in Redis. Both run as containers.
 
 ```bash
 cd rag-chatbot
-uv sync                  # creates .venv and installs dependencies
-cp .env.example .env     # then edit .env: set SELF_CHECK_KEY to your name, add API keys later
+./start.sh
 ```
 
-## 3. Run the app
+The script checks `uv` and Docker, starts Postgres (with pgvector) and Redis via `docker compose`,
+installs Python dependencies, creates `.env` from `.env.example` on the first run (add your keys, run it
+again), applies the database migrations, runs a health check, indexes `data/documents/` when the vector
+table is empty, and starts the app on <http://127.0.0.1:8000/auth>.
 
-```bash
-uv run uvicorn app.main:app --reload
-```
+Useful variants:
 
-Open <http://127.0.0.1:8000>. Create a session and send a message. Until you finish Milestone 1 the reply is a
-placeholder, and the sidebar lists the modules that are not built yet.
+| Command | What it does |
+|---|---|
+| `./start.sh --no-check` | skip the live LLM / LangSmith key test |
+| `./start.sh --reset` | delete the Postgres + Redis data and set up again |
+| `docker compose ps` | are the containers up? |
+| `docker compose down` | stop them (data is kept in docker volumes) |
+| `uv run python -m app.db check` | one-line JSON health report |
+| `uv run python -m app.db migrate` | apply new SQL files from `app/db/migrations/` |
+
+### Accounts and e-mail
+
+Sign up asks for a 6-digit code sent by e-mail (Brevo). Forgot password sends a one-time link.
+Set `BREVO_API_KEY` in `.env` (Brevo → SMTP & API → API keys). Without it the app still works:
+the code is printed to the terminal running the server instead of being e-mailed.
+`BREVO_SENDER_EMAIL` is optional; the first verified sender on the Brevo account is used.
+
+Ports: Postgres on `127.0.0.1:5434`, Redis on `127.0.0.1:6380` (not the defaults, so other local
+projects are never touched). Credentials are in `docker-compose.yml` and `.env.example`.
+
+### Running without Docker
+
+Leave `DATABASE_URL` and `REDIS_URL` empty in `.env`. The app then runs in the original single-user
+mode: no login page, chats in `data/sessions/*.json`, vectors in `data/vectorstore/store.json`.
+This is also how the test-suite runs, so tests never need the containers.
 
 ## 4. Test your work
 
@@ -70,7 +95,10 @@ Set `LLM_PROVIDER`, `LLM_MODEL` and the API key in `.env`. Never commit `.env`.
 app/
   main.py, config.py, deps.py, services.py, web.py   working plumbing — leave alone
   api/            JSON endpoints (sessions, chat, documents)
-  storage/        one JSON file per session
+  auth/           accounts: Brevo e-mail, rules (service.py), /auth pages (router.py)
+  db/             Postgres pool + SQL migrations, Redis key-value, `python -m app.db check|migrate`
+  storage/        chat sessions: pg_store.py (Postgres, per user) or json_store.py (no-Docker mode)
+  vectordb/pg_store.py   vectors + keyword search in Postgres (pgvector + tsvector)
   chat/llm.py            M1  get_llm
   chat/engine.py         M1, M7, M8  LangGraph engine
   observability.py       M2  LangSmith
@@ -82,7 +110,8 @@ app/
   tools/                 M8
 data/documents/  sample documents      data/sessions/  chat history (JSON)
 tests/           plumbing tests + tests/contract (one file per milestone)
-templates/, static/   the server-rendered UI
+templates/, static/   the server-rendered UI (templates/auth.html + static/auth/ = the access page)
+docker-compose.yml    Postgres (pgvector) + Redis for local development
 ```
 
 Models in `app/models.py` are the contract between your modules and the trainer's evaluator — don't rename fields.

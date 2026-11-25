@@ -1,0 +1,45 @@
+# Local infrastructure for the RAG chatbot: Postgres (with pgvector) + Redis.
+#   docker compose up -d        start both (data survives restarts in named volumes)
+#   docker compose down         stop both (keeps data)
+#   docker compose down -v      stop both and DELETE the data
+# Ports are bound to 127.0.0.1 only and chosen not to clash with other projects
+# (5434 / 6380 instead of the defaults 5432 / 6379).
+name: rag-chatbot
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: rag-chatbot-postgres
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+      POSTGRES_DB: rag_chatbot
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - rag_chatbot_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag_chatbot"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: rag-chatbot-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - rag_chatbot_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  rag_chatbot_pgdata:
+  rag_chatbot_redis:

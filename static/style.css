@@ -393,3 +393,10 @@ details[open] > summary .icon { transform: none; }
 .stamp.is-empty .slots i.on { background: transparent; outline: 1px solid var(--muted); }
 .stamp-empty { color: var(--muted); font-style: italic; }
 .decision.is-empty .decision-route { color: var(--muted); }
+
+/* account block (sidebar bottom) */
+.account { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 6px 2px; border-top: 1px solid var(--line); }
+.account-avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 13px; flex: none; }
+.account-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+.account-text b { font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-text small { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

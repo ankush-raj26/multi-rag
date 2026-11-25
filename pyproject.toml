@@ -20,6 +20,11 @@ dependencies = [
     "rank-bm25>=0.2,<1",
     "pypdf>=5",
     "deepagents>=0.7,<1",
+    "psycopg[binary,pool]>=3.2",
+    "pgvector>=0.3",
+    "redis>=5",
+    "bcrypt>=4",
+    "httpx>=0.28",
 ]
 
 [dependency-groups]

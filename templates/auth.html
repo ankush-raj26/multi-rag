@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% if mode == "signup" %}Cut a key{% elif mode == "forgot" or mode == "reset" %}Reissue a key{% elif mode == "verify" %}Confirm your e-mail{% else %}Sign in{% endif %} · RAG Chatbot</title>
+<meta name="description" content="Sign in to the RAG Chatbot. Your chats, your documents, your history, kept under your name.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230D2740'/><path d='M8 9h16M8 16h16M8 23h16' stroke='%23EAF0F6' stroke-width='2'/><circle cx='16' cy='16' r='3' fill='%23FF6B45'/></svg>">
+<link rel="preload" href="{{ url_for('static', path='fonts/archivo-latin-500-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{{ url_for('static', path='welcome/scrollcraft.css') }}?v={{ static_v('welcome/scrollcraft.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='auth/auth.css') }}?v={{ static_v('auth/auth.css') }}">
+</head>
+<body data-mode="{{ mode }}">
+
+<span data-sc-progress></span>
+<div class="sc-grain" aria-hidden="true"></div>
+<div class="paper" aria-hidden="true"></div>
+
+<nav class="titleblock" aria-label="Drawing sheets">
+  <div class="tb-head">
+    <a class="tb-name" href="/welcome">RAG Chatbot</a>
+    <span class="tb-meta">Access sheet · drawn to fit · scale NTS</span>
+  </div>
+  <ol class="tb-sheets">
+    <li><a href="#key"><b>A-1</b> The key</a></li>
+    <li><a href="#desk"><b>A-2</b> Desk</a></li>
+  </ol>
+</nav>
+
+<!-- A-1  The key draws itself as you scroll. -->
+<section id="key" class="sheet sheet--clear" data-sc-act="pin" data-sc-span="1.8" aria-label="The key">
+  <div data-sc-stage class="keystage">
+    <svg class="keydraw" viewBox="0 0 640 220" aria-hidden="true">
+      <g class="kd-grid" aria-hidden="true">
+        <line x1="40" y1="110" x2="600" y2="110"/>
+        <line x1="320" y1="20" x2="320" y2="200"/>
+      </g>
+      <path class="kd-outline" id="kd-outline" pathLength="1"
+            d="M60 110 a48 48 0 1 1 96 0 a48 48 0 1 1 -96 0 M156 110 H560 v34 h-26 v-18 h-22 v18 h-26 v-18 h-22 v18 h-26 v-18 h-22 v18 h-26 v-18 h-22 v18 h-26 v-18 h-22 v18 h-26 v-18 h-22 v18 h-26 v-18 h-22 v18 h-26 v-34"/>
+      <circle class="kd-bow" cx="108" cy="110" r="14" pathLength="1"/>
+      <g class="kd-dims">
+        <line x1="156" y1="166" x2="560" y2="166"/>
+        <text x="358" y="186" text-anchor="middle">bitting · 8 cuts · yours</text>
+        <line x1="60" y1="46" x2="156" y2="46"/>
+        <text x="108" y="38" text-anchor="middle">bow</text>
+      </g>
+    </svg>
+
+    <div class="sc-copy sc-copy--lead keycopy" data-sc-cue="0 1 0 0">
+      <p class="sc-label">A-1 · Access</p>
+      <h1 class="sc-display sc-display--xl" data-sc-kinetic="lines">Every answer here is signed.</h1>
+      <p class="sc-lede">Your chats, your documents, your history, kept under your name. Scroll to cut your key, or jump straight to the desk.</p>
+      <p class="keycopy-cta">
+        <a class="kbtn kbtn--primary" href="#desk">Go to the desk</a>
+        <a class="kbtn" href="/welcome">See how the bot thinks</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- A-2  The desk: the forms. -->
+<section id="desk" class="sheet sheet--print desk" aria-label="Sign in or create an account">
+  <div class="sc-wrap desk-wrap" data-sc-in data-sc-stagger="60">
+
+    <aside class="deskkey" aria-hidden="true">
+      <svg class="livekey" viewBox="0 0 320 120">
+        <path class="lk-bow" d="M18 60 a26 26 0 1 1 52 0 a26 26 0 1 1 -52 0"/>
+        <circle class="lk-hole" cx="44" cy="60" r="8"/>
+        <path class="lk-blade" id="lk-blade" d="M70 48 H300 v24 H70 z"/>
+        <text class="lk-note" id="lk-note" x="185" y="104" text-anchor="middle">no cuts yet</text>
+      </svg>
+      <p class="deskkey-cap">The key is cut from your password's length, never its letters.</p>
+    </aside>
+
+    <div class="desk-card" id="desk-card">
+      <div class="desk-tabs" role="tablist" aria-label="What do you need">
+        <button type="button" role="tab" class="desk-tab" data-go="signin" aria-selected="false" id="tab-signin">Sign in</button>
+        <button type="button" role="tab" class="desk-tab" data-go="signup" aria-selected="false" id="tab-signup">Create account</button>
+      </div>
+
+      <p class="desk-error" id="desk-error" role="alert" {% if not error %}hidden{% endif %}>{{ error or "" }}</p>
+      <p class="desk-note" id="desk-note" role="status" {% if mode != "sent" %}hidden{% endif %}>If that address has an account, a reset link is on its way. Check your inbox and spam.</p>
+
+      <!-- SIGN IN -->
+      <form class="panel" data-panel="signin" method="post" action="/auth/signin" autocomplete="on">
+        <h2 class="panel-title">Present your key</h2>
+        <label class="field"><span>E-mail</span>
+          <input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder="you@company.com"></label>
+        <label class="field"><span>Password</span>
+          <input name="password" type="password" required autocomplete="current-password" data-cuts placeholder="••••••••"></label>
+        <div class="panel-actions">
+          <button class="kbtn kbtn--primary" type="submit">Sign in</button>
+          <button type="button" class="kbtn kbtn--link" data-go="forgot">Forgot it?</button>
+        </div>
+      </form>
+
+      <!-- SIGN UP -->
+      <form class="panel" data-panel="signup" method="post" action="/auth/signup" autocomplete="on">
+        <h2 class="panel-title">Cut a new key</h2>
+        <label class="field"><span>Name</span>
+          <input name="name" type="text" autocomplete="name" value="{{ name or '' }}" placeholder="What should we call you"></label>
+        <label class="field"><span>E-mail</span>
+          <input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder="you@company.com"></label>
+        <label class="field"><span>Password</span>
+          <input name="password" type="password" required minlength="8" autocomplete="new-password" data-cuts placeholder="At least 8 characters"></label>
+        <p class="field-hint">A 6-digit code goes to that address. The account opens when you enter it.</p>
+        <div class="panel-actions">
+          <button class="kbtn kbtn--primary" type="submit">Send my code</button>
+        </div>
+      </form>
+
+      <!-- FORGOT -->
+      <form class="panel" data-panel="forgot" method="post" action="/auth/forgot" autocomplete="on">
+        <h2 class="panel-title">Reissue a key</h2>
+        <p class="field-hint">Enter your e-mail and we send a one-time link. It works for 30 minutes.</p>
+        <label class="field"><span>E-mail</span>
+          <input name="email" type="email" required autocomplete="email" value="{{ email or '' }}" placeholder="you@company.com"></label>
+        <div class="panel-actions">
+          <button class="kbtn kbtn--primary" type="submit">Send reset link</button>
+          <button type="button" class="kbtn kbtn--link" data-go="signin">Back to sign in</button>
+        </div>
+      </form>
+
+      <!-- VERIFY -->
+      <form class="panel" data-panel="verify" method="post" action="/auth/verify" autocomplete="off">
+        <h2 class="panel-title">Confirm your e-mail</h2>
+        <p class="field-hint">We sent a 6-digit code. It expires in 15 minutes.</p>
+        <input type="hidden" name="u" value="{{ user_id or '' }}">
+        <label class="field"><span>Code</span>
+          <input name="code" class="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code" placeholder="000000"></label>
+        <div class="panel-actions">
+          <button class="kbtn kbtn--primary" type="submit">Open my account</button>
+          <button type="button" class="kbtn kbtn--link" id="resend" data-u="{{ user_id or '' }}">Send a new code</button>
+        </div>
+      </form>
+
+      <!-- RESET -->
+      <form class="panel" data-panel="reset" method="post" action="/auth/reset" autocomplete="on">
+        <h2 class="panel-title">Choose a new password</h2>
+        <input type="hidden" name="token" value="{{ token or '' }}">
+        <label class="field"><span>New password</span>
+          <input name="password" type="password" required minlength="8" autocomplete="new-password" data-cuts placeholder="At least 8 characters"></label>
+        <div class="panel-actions">
+          <button class="kbtn kbtn--primary" type="submit">Save and sign in</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="desk-foot sc-wrap">
+    <span>Sheet A-2 of 2</span>
+    <span>Passwords are hashed with bcrypt. Codes and links expire on their own.</span>
+  </footer>
+</section>
+
+<script src="{{ url_for('static', path='welcome/scrollcraft.js') }}?v={{ static_v('welcome/scrollcraft.js') }}"></script>
+<script>ScrollCraft.mount(document.body);</script>
+<script src="{{ url_for('static', path='auth/auth.js') }}?v={{ static_v('auth/auth.js') }}" defer></script>
+</body>
+</html>

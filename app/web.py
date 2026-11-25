@@ -68,6 +68,7 @@ def _render_page(request: Request, store: SessionStore, components: Components, 
             "pickable": pickable,
             "demo_doc": DEMO_DOC if DEMO_DOC in pickable else None,
             "picked": _last_picked(current),
+            "user": getattr(request.state, "user", None),
         },
     )
 

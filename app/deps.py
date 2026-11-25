@@ -51,11 +51,14 @@ def _try(name: str, factory: Callable[..., T], missing: dict[str, str], **kwargs
     return None
 
 
-def build_components() -> Components:
+def build_components(settings: Any | None = None) -> Components:
+    """`settings` (the app's) decides where vectors live: tests pass temp-folder settings and
+    must never touch the real Postgres, so the JSON store is used unless pgvector is configured."""
     missing: dict[str, str] = {}
     chunker = _try("chunker", get_chunker, missing)
     embedder = _try("embedder", get_embedder, missing)
-    store = _try("vector_store", get_vector_store, missing)
+    store_kwargs = {} if settings is None or settings.use_pgvector else {"persist_dir": settings.vector_dir}
+    store = _try("vector_store", get_vector_store, missing, **store_kwargs)
     retriever = None
     if store is not None and embedder is not None:
         retriever = _try("retriever", get_retriever, missing, store=store, embedder=embedder)
@@ -71,6 +74,14 @@ def build_components() -> Components:
 
 
 def get_store(request: Request) -> SessionStore:
+    """The chat store for this request: the signed-in user's rows in Postgres, or (no auth
+    configured) the shared JSON folder store the training scaffold started with."""
+    user = getattr(request.state, "user", None)
+    if user is not None:
+        from app.db.pg import get_pool
+        from app.storage.pg_store import PostgresSessionStore
+
+        return PostgresSessionStore(get_pool(request.app.state.settings.database_url), user.id)  # type: ignore[return-value]
     store: SessionStore = request.app.state.session_store
     return store
 
@@ -78,7 +89,7 @@ def get_store(request: Request) -> SessionStore:
 def get_components(request: Request) -> Components:
     state = request.app.state
     if getattr(state, "components", None) is None:
-        state.components = build_components()
+        state.components = build_components(state.settings)
         for name, reason in state.components.missing.items():
             logger.info("Not available yet: %s (%s)", name, reason)
     components: Components = state.components

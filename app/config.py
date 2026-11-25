@@ -47,6 +47,28 @@ class Settings:
     embedding_model: str = ""
     max_upload_bytes: int = 5 * 1024 * 1024
     allowed_upload_suffixes: tuple[str, ...] = field(default=(".md", ".txt", ".pdf"))
+    # --- infrastructure (Postgres + Redis via docker compose) ---
+    database_url: str = ""
+    redis_url: str = ""
+    vector_backend: str = "auto"  # auto | pgvector | json
+    # --- auth + transactional email (Brevo) ---
+    brevo_api_key: str = ""
+    brevo_sender_email: str = ""
+    brevo_sender_name: str = "RAG Chatbot"
+    app_base_url: str = "http://127.0.0.1:8000"
+    session_ttl_days: int = 14
+
+    @property
+    def auth_enabled(self) -> bool:
+        """Accounts need Postgres (users) and Redis (login sessions). Without both the
+        app runs in the old single-user mode, which is also what the test-suite uses."""
+        return bool(self.database_url and self.redis_url)
+
+    @property
+    def use_pgvector(self) -> bool:
+        if self.vector_backend == "json":
+            return False
+        return bool(self.database_url)
 
     def ensure_dirs(self) -> None:
         for path in (self.sessions_dir, self.documents_dir, self.vector_dir):
@@ -74,6 +96,14 @@ def load_settings() -> Settings:
         llm_provider=os.getenv("LLM_PROVIDER", "anthropic"),
         llm_model=os.getenv("LLM_MODEL", ""),
         embedding_model=os.getenv("EMBEDDING_MODEL", ""),
+        database_url=os.getenv("DATABASE_URL", ""),
+        redis_url=os.getenv("REDIS_URL", ""),
+        vector_backend=os.getenv("VECTOR_BACKEND", "auto"),
+        brevo_api_key=os.getenv("BREVO_API_KEY", ""),
+        brevo_sender_email=os.getenv("BREVO_SENDER_EMAIL", ""),
+        brevo_sender_name=os.getenv("BREVO_SENDER_NAME", "RAG Chatbot"),
+        app_base_url=os.getenv("APP_BASE_URL", "http://127.0.0.1:8000").rstrip("/"),
+        session_ttl_days=_env_int("SESSION_TTL_DAYS", 14),
     )
 
 

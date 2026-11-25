@@ -169,9 +169,18 @@ class PersistentVectorStore:
 
 
 def get_vector_store(persist_dir: str | Path | None = None) -> VectorStore:
-    """Open (or create) the store under `persist_dir` (default: settings.vector_dir)."""
-    if persist_dir is None:
-        from app.config import get_settings
+    """The store the app uses.
 
-        persist_dir = get_settings().vector_dir
-    return PersistentVectorStore(persist_dir)
+    - `persist_dir` given (tests, scripts)      -> the JSON file store in that folder
+    - DATABASE_URL set and VECTOR_BACKEND != json -> Postgres + pgvector (the default setup)
+    - otherwise                                  -> the JSON file store under settings.vector_dir
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    if persist_dir is None and settings.use_pgvector:
+        from app.db.pg import get_pool
+        from app.vectordb.pg_store import PgVectorStore
+
+        return PgVectorStore(get_pool())
+    return PersistentVectorStore(persist_dir or settings.vector_dir)
